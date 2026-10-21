@@ -14,7 +14,7 @@ MaxWalk = Annotated[
 ]
 Origins = Annotated[list[LatLon], Field(min_length=1, max_length=10)]
 
-MAX_MINUTES = 180  # longest travel time accepted; keep SLIDER_MAX in web/app.js in step
+MAX_MINUTES = 220  # longest travel time accepted; the web map reads it from /api/config
 DEFAULT_WALK_SPEED_MPS = 1.25  # 4.5 km/h
 DEFAULT_MAX_WALK_M = 1000.0
 
@@ -87,6 +87,12 @@ class Place(BaseModel):
     lat: float
     lon: float
     kind: str = ""
+
+
+class AppConfig(BaseModel):
+    """Limits the web map needs to know."""
+
+    max_minutes: int = Field(description="Longest travel time a query may ask for.")
 
 
 class CityInfo(BaseModel):

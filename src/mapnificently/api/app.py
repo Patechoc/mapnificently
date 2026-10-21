@@ -11,6 +11,7 @@ from fastapi.staticfiles import StaticFiles
 
 from mapnificently import __version__, engine
 from mapnificently.models import (
+    AppConfig,
     CityConfig,
     CityInfo,
     CityStatus,
@@ -21,6 +22,7 @@ from mapnificently.models import (
     ReachResponse,
     StopsResponse,
 )
+from mapnificently.models.api import MAX_MINUTES
 from mapnificently.providers import ProviderError, load_cities
 from mapnificently.settings import Settings, get_settings
 from mapnificently.timetable import CityDataStore, DataNotReadyError, cached_dates
@@ -61,6 +63,11 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
 
     def city_info(city: CityConfig, store: CityDataStore) -> CityInfo:
         return CityInfo(**city.model_dump(), data_ready=store.is_ready(city.id))
+
+    @app.get("/api/config", tags=["cities"])
+    def config() -> AppConfig:
+        """Limits the web map adapts to, such as the longest travel time."""
+        return AppConfig(max_minutes=MAX_MINUTES)
 
     @app.get("/api/cities", tags=["cities"])
     def list_cities(store: StoreDep) -> list[CityInfo]:

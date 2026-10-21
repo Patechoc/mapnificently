@@ -1,6 +1,7 @@
 """Pydantic models for Mapnificently."""
 
 from mapnificently.models.api import (
+    AppConfig,
     CityInfo,
     CityStatus,
     FeedStatus,
@@ -15,6 +16,7 @@ from mapnificently.models.api import (
 from mapnificently.models.city import BBox, CityConfig, LatLon
 
 __all__ = [
+    "AppConfig",
     "BBox",
     "CityConfig",
     "CityInfo",

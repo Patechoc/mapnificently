@@ -25,10 +25,45 @@
     constructor(status, detail) { super(detail); this.status = status; }
   }
 
-  async function fetchBuffer(url) {
-    const response = await fetch(url);
-    if (!response.ok) throw new HttpError(response.status, `cannot load ${url}`);
-    return response.arrayBuffer();
+  // A failed download usually means the site's server is gone (e.g. `make static-serve` was
+  // stopped) and this file was never saved for offline use. Say so instead of "Failed to fetch".
+  const UNREACHABLE = "The site cannot be reached and this data is not saved for offline use yet: "
+    + "open it once while online (or start `make static-serve` again). "
+    + "For the full app with a server, use `make serve` and http://127.0.0.1:8000.";
+
+  // Files loaded before the service worker controls the page (the first visit) bypass its
+  // cache; hand them over once it takes control, so they work offline too.
+  const loadedBeforeControl = new Set();
+
+  function handOverToServiceWorker() {
+    const worker = navigator.serviceWorker && navigator.serviceWorker.controller;
+    if (!worker || !loadedBeforeControl.size) return;
+    worker.postMessage({ type: "cache", urls: [...loadedBeforeControl] });
+    loadedBeforeControl.clear();
+  }
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.addEventListener("controllerchange", handOverToServiceWorker);
+  }
+
+  async function download(url, what) {
+    let response;
+    try {
+      response = await fetch(url);
+    } catch {
+      throw new HttpError(503, `Cannot load ${what}. ${UNREACHABLE}`);
+    }
+    if (!response.ok) throw new HttpError(response.status, `Cannot load ${what} (${url}: HTTP ${response.status}).`);
+    if (!(navigator.serviceWorker && navigator.serviceWorker.controller)) {
+      loadedBeforeControl.add(new URL(url, location.href).href);
+    } else {
+      handOverToServiceWorker();
+    }
+    return response;
+  }
+
+  async function fetchBuffer(url, what) {
+    return (await download(url, what)).arrayBuffer();
   }
 
   function parseContainer(buffer) {
@@ -43,10 +78,7 @@
 
   function manifest() {
     if (!manifestPromise) {
-      manifestPromise = fetch("data/manifest.json").then((r) => {
-        if (!r.ok) throw new HttpError(r.status, "cannot load data/manifest.json");
-        return r.json();
-      });
+      manifestPromise = download("data/manifest.json", "the list of cities").then((r) => r.json());
       manifestPromise.catch(() => { manifestPromise = null; });
     }
     return manifestPromise;
@@ -64,7 +96,7 @@
     const file = (await city(id)).files.network;
     if (!networks.has(file)) {
       const promise = (async () => {
-        const { meta, arrays } = parseContainer(await fetchBuffer(file));
+        const { meta, arrays } = parseContainer(await fetchBuffer(file, "the stops of this region"));
         const [lat0, lon0] = meta.center;
         const kx = EARTH_RADIUS_M * Math.cos(lat0 * Math.PI / 180) * Math.PI / 180;
         const ky = EARTH_RADIUS_M * Math.PI / 180;
@@ -97,7 +129,7 @@
       return promise;
     }
     const promise = (async () => {
-      const { meta, arrays } = parseContainer(await fetchBuffer(key));
+      const { meta, arrays } = parseContainer(await fetchBuffer(key, `the timetable for ${day}`));
       return { ...arrays, numTrips: meta.num_trips };
     })();
     promise.catch(() => timetables.delete(key));

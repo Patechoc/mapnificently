@@ -229,3 +229,5 @@ footer a { color: var(--accent); }
 .route-popup { font: 13px/1.4 system-ui, sans-serif; }
 .route-popup strong { display: block; margin-bottom: 2px; }
 .route-popup .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
+
+#edition { width: 100%; font-weight: 600; color: var(--panel-fg); }

@@ -67,6 +67,14 @@ async function networkFirst(request) {
   }
 }
 
+// The page sends what it loaded before this worker took control (on the first visit).
+self.addEventListener("message", (event) => {
+  const { type, urls } = event.data || {};
+  if (type !== "cache" || !Array.isArray(urls)) return;
+  const own = urls.filter((u) => new URL(u).origin === self.location.origin);
+  event.waitUntil(caches.open(APP_CACHE).then((cache) => cache.addAll(own)).catch(() => {}));
+});
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   if (request.method !== "GET") return;

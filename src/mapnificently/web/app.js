@@ -656,6 +656,11 @@ async function selectCity(id, { fitView = true } = {}) {
   $("city").value = city.id;
   $("attribution").textContent = city.attribution;
   if (city.dates) limitDates(city.dates);
+  if (OFFLINE && city.dates) {
+    const day = (d) => new Date(`${d}T12:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" });
+    $("edition").textContent = `Static version · timetables ${day(city.dates[0])} – ${day(city.dates[city.dates.length - 1])}`;
+    $("edition").hidden = false;
+  }
   clearOrigins();
   clearDestination();
   stopLayer.clearLayers();

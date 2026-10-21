@@ -13,10 +13,18 @@ MaxWalk = Annotated[
     Field(ge=0, le=5000, description="Longest walk, in metres, to or from a stop."),
 ]
 Origins = Annotated[list[LatLon], Field(min_length=1, max_length=10)]
+MinChange = Annotated[
+    int,
+    Field(ge=0, le=15, description="Shortest time, in minutes, to change between vehicles."),
+]
+Mode = Literal[
+    "walk", "bus", "coach", "tram", "metro", "rail", "ferry", "cable car", "funicular", "other"
+]
 
 MAX_MINUTES = 220  # longest travel time accepted; the web map reads it from /api/config
 DEFAULT_WALK_SPEED_MPS = 1.25  # 4.5 km/h
 DEFAULT_MAX_WALK_M = 1000.0
+DEFAULT_MIN_CHANGE_MIN = 2
 
 
 class TripRequest(BaseModel):
@@ -32,6 +40,7 @@ class TripRequest(BaseModel):
     )
     walk_speed_mps: WalkSpeed = DEFAULT_WALK_SPEED_MPS
     max_walk_m: MaxWalk = DEFAULT_MAX_WALK_M
+    min_change_min: MinChange = DEFAULT_MIN_CHANGE_MIN
 
 
 class ReachRequest(TripRequest):
@@ -45,6 +54,13 @@ class IsochroneRequest(TripRequest):
 
     minutes: Annotated[int, Field(ge=1, le=MAX_MINUTES)] = 30
     mode: Literal["union", "intersection"] = "union"
+
+
+class RouteRequest(TripRequest):
+    """Fastest journey from each origin to ``destination``."""
+
+    destination: LatLon
+    max_minutes: Annotated[int, Field(ge=1, le=MAX_MINUTES)] = MAX_MINUTES
 
 
 class OriginReach(BaseModel):
@@ -64,8 +80,52 @@ class ReachResponse(BaseModel):
     max_minutes: int
     walk_speed_mps: float
     max_walk_m: float
+    min_change_min: int
     walk_detour: float = Field(description="Walking distance / straight-line distance.")
     origins: list[OriginReach]
+    computation_ms: float
+
+
+class JourneyLeg(BaseModel):
+    """One walk or one ride."""
+
+    mode: Mode
+    line: str | None = Field(default=None, description='Line name, e.g. "R21" or "20".')
+    headsign: str | None = Field(default=None, description="Where the vehicle is heading.")
+    from_name: str
+    to_name: str
+    depart: datetime
+    arrive: datetime
+    wait_s: int = Field(default=0, description="Waiting at the start of this leg.")
+    distance_m: int | None = Field(default=None, description="Walking distance in metres.")
+    num_stops: int | None = Field(default=None, description="Stops travelled on a ride.")
+    path: list[LatLon] = Field(description="Points to draw: stops on a ride, ends of a walk.")
+
+
+class Journey(BaseModel):
+    """Fastest journey from one origin, or ``reachable=False``."""
+
+    origin: LatLon
+    reachable: bool
+    depart: datetime
+    arrive: datetime | None = None
+    duration_s: int | None = None
+    num_changes: int = 0
+    legs: list[JourneyLeg] = []
+
+
+class RouteResponse(BaseModel):
+    """Result of a route query: one journey per origin, in request order."""
+
+    city: str
+    departure: datetime
+    destination: LatLon
+    min_change_min: int
+    journeys: list[Journey]
+    fastest_s: int | None = Field(description="Duration of the quickest journey.")
+    everyone_s: int | None = Field(
+        description="When all origins have arrived; null if one cannot get there."
+    )
     computation_ms: float
 
 

@@ -49,8 +49,8 @@ FEED1 = {
     + 'STATION,"Central, station",59.91,10.72,1,\n',
     "routes.txt": "route_id,agency_id,route_short_name,route_type\n"
     "L1,X,1,700\nL2,X,2,3\nLN,X,N,3\n",
-    "trips.txt": "route_id,service_id,trip_id\n"
-    "L1,WK,T1\nL2,WK,T2\nL1,WK,T3\nLN,WK,TN\nL1,WK,TNB\nL1,SAT,TS\n",
+    "trips.txt": "route_id,service_id,trip_id,trip_headsign\n"
+    "L1,WK,T1,Stop D\nL2,WK,T2,\nL1,WK,T3,Stop D\nLN,WK,TN,\nL1,WK,TNB,\nL1,SAT,TS,\n",
     "stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence,"
     "pickup_type,drop_off_type\n"
     "T1,08:05:00,08:05:00,A,1,,\n"

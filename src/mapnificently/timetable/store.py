@@ -16,8 +16,10 @@ from mapnificently.settings import Settings
 from mapnificently.timetable.build import (
     StopNetwork,
     Timetable,
+    TripInfo,
     build_network,
     build_timetable,
+    load_trip_info,
     read_meta,
 )
 
@@ -40,6 +42,7 @@ class CityDataStore:
         self.http_client = http_client
         self._lock = threading.RLock()
         self._networks: dict[str, StopNetwork] = {}
+        self._trip_info: dict[str, TripInfo] = {}
         self._timetables: OrderedDict[tuple[str, date], Timetable] = OrderedDict()
         self._providers: dict[str, TransitProvider] = {}
 
@@ -91,6 +94,7 @@ class CityDataStore:
         """Forget in-memory structures of a city."""
         with self._lock:
             self._networks.pop(city_id, None)
+            self._trip_info.pop(city_id, None)
             for key in [k for k in self._timetables if k[0] == city_id]:
                 del self._timetables[key]
 
@@ -104,6 +108,14 @@ class CityDataStore:
                     self.prepared_dir(city_id), city.center.lat, city.center.lon
                 )
             return self._networks[city_id]
+
+    def trip_info(self, city_id: str) -> TripInfo:
+        """Line names, directions and route types of a city's trips."""
+        with self._lock:
+            if city_id not in self._trip_info:
+                self._require_ready(city_id)
+                self._trip_info[city_id] = load_trip_info(self.prepared_dir(city_id))
+            return self._trip_info[city_id]
 
     def timetable(self, city_id: str, service_date: date) -> Timetable:
         """Connections of a city on one service date (least recently used ones are dropped)."""

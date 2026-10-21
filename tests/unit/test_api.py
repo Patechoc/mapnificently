@@ -136,3 +136,19 @@ def test_web_ui_served(client: TestClient):
     assert "Mapnificently" in index.text
     assert client.get("/static/app.js").status_code == 200
     assert client.get("/openapi.json").json()["info"]["title"] == "Mapnificently"
+
+
+def test_route(client: TestClient):
+    E = {"lat": COORDS["E"][0], "lon": COORDS["E"][1]}
+    body = {"origins": [A, D], "destination": E, "departure": "2026-10-22T08:00"}
+    response = client.post("/api/cities/testville/route", json=body)
+    assert response.status_code == 200
+    result = response.json()
+    from_a, from_d = result["journeys"]
+    assert from_a["duration_s"] == 30 * 60
+    assert [leg["mode"] for leg in from_a["legs"]] == ["bus", "walk", "bus"]
+    assert from_d["reachable"] is False
+    assert result["everyone_s"] is None
+    assert result["min_change_min"] == 2
+    too_long = client.post("/api/cities/testville/route", json={**body, "min_change_min": 20})
+    assert too_long.status_code == 422

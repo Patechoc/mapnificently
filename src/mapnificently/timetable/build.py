@@ -95,6 +95,35 @@ class Timetable:
         return len(self.dep_s)
 
 
+@dataclass
+class TripInfo:
+    """What riders see of each trip, indexed by trip index."""
+
+    route_type: IntArray
+    line: list[str]
+    headsign: list[str | None]
+
+    @property
+    def num_trips(self) -> int:
+        """Number of trips."""
+        return len(self.line)
+
+
+def load_trip_info(prepared_dir: Path) -> TripInfo:
+    """Line names, directions and route types of all trips."""
+    trips = pl.read_parquet(prepared_dir / "trips.parquet").sort("trip_idx")
+    if "line" not in trips.columns:  # prepared before line names were kept
+        trips = trips.with_columns(
+            pl.col("route_id").str.split(":").list.last().alias("line"),
+            pl.lit(None, dtype=pl.String).alias("headsign"),
+        )
+    return TripInfo(
+        route_type=trips["route_type"].to_numpy().astype(np.int32),
+        line=trips["line"].to_list(),
+        headsign=trips["headsign"].to_list(),
+    )
+
+
 def read_meta(prepared_dir: Path) -> dict[str, Any]:
     """The ``meta.json`` written by :func:`mapnificently.gtfs.prepare_city`."""
     data: dict[str, Any] = json.loads((prepared_dir / "meta.json").read_text())

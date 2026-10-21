@@ -97,12 +97,50 @@ Good to know:
 - **Refreshing over HTTP is off** in the image (`MAPNIFICENTLY_ALLOW_REFRESH=false`), so
   nobody can make a public server re-download everything.
 - **Building needs about 1.5 GB of memory** (preparing Bergen is the peak). If the build in
-  Cloud Shell runs out, build on Google's build servers instead:
-  `gcloud run deploy mapnificently --source . --memory 1Gi --allow-unauthenticated`.
+  Cloud Shell runs out, deploy without the button (below), which builds on Google's servers.
 - **Map tiles** come from OpenStreetMap's public server, whose policy does not allow heavy
   traffic: switch the tile provider before sharing a deployment widely.
 - **Cold starts:** an idle instance is stopped; the first request after a pause loads a
   city's data in about a second.
+
+### If the button fails
+
+**`Error 429: Quota exceeded … 'List available/disabled services requests per minute'`**
+while "enabling required APIs": a per-minute rate limit on Google's side, not a problem with
+the app or your project. Wait a minute and try again. If it keeps happening, check billing and
+enable the APIs yourself in Cloud Shell (replace `PROJECT_ID` with your project's id):
+
+```bash
+gcloud config set project PROJECT_ID
+gcloud billing projects describe PROJECT_ID   # must show: billingEnabled: true
+gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
+```
+
+Then run the button again, or paste in Cloud Shell what the button runs:
+
+```bash
+cloudshell_open --repo_url "https://github.com/Patechoc/mapnificently.git" --page "shell" --force_new_clone
+```
+
+**Deploy without the button.** This builds on Google's build servers (Cloud Build), so it
+also avoids Cloud Shell's memory limit:
+
+```bash
+git clone https://github.com/Patechoc/mapnificently.git && cd mapnificently
+gcloud run deploy mapnificently --source . --region europe-north1 \
+  --memory 1Gi --max-instances 2 --allow-unauthenticated
+```
+
+`europe-north1` (Finland) is the region closest to Norway; gcloud prints the app's address at
+the end.
+
+**When you are done**, remove the service and its images so nothing keeps costing (a budget
+alert under Billing → Budgets & alerts is a good safety net while it runs):
+
+```bash
+gcloud run services delete mapnificently --region europe-north1
+gcloud artifacts repositories list   # then delete the repository holding the images
+```
 
 ### Test the container locally
 

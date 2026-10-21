@@ -72,3 +72,4 @@ data/
 # OS files
 .DS_Store
 Thumbs.db
+openapi.json

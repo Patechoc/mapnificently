@@ -21,14 +21,25 @@ Configured cities: **Oslo, Bergen, Trondheim and Moss**. Their data comes from
 ## Quick start
 
 ```bash
-uv sync --all-extras
-
-uv run mapnificently data fetch trondheim     # ~40 MB, a few seconds
-uv run mapnificently data fetch --all         # all cities, ~360 MB on disk
-uv run mapnificently serve                    # http://127.0.0.1:8000
+make install                      # uv sync --all-extras
+make data-fetch CITY=trondheim    # ~40 MB, a few seconds
+make data-fetch-all               # all cities, ~360 MB on disk
+make serve                        # http://127.0.0.1:8000
 ```
 
 Open http://127.0.0.1:8000, click the map and move the slider.
+
+Run `make` on its own to list every target, grouped into Setup, Quality, Tests, Data, Run,
+Queries and Housekeeping. Variables are set on the command line:
+
+```bash
+make reach CITY=moss FROM="Moss stasjon" AT=2026-10-22T07:30 MINUTES=45
+make isochrone FROM="Majorstuen;Oslo lufthavn" MINUTES=60 MODE=intersection OUT=meet.geojson
+make check                        # lint, format check, mypy and tests
+```
+
+Separate several start points in `FROM` with `;`. The Query targets need a server running, for
+example `make serve` in another terminal.
 
 ## CLI
 
@@ -160,11 +171,13 @@ Settings are read from environment variables or a `.env` file:
 ## Development
 
 ```bash
-uv sync --all-extras
-uv run pytest                        # unit tests on a synthetic GTFS feed
-uv run pytest --run-integration      # also downloads real Entur data (~40 MB)
-uv run ruff check . && uv run ruff format --check .
-uv run mypy src/
+make install            # uv sync --all-extras
+make test               # unit tests on a synthetic GTFS feed
+make test-integration   # also downloads real Entur data (~40 MB)
+make coverage           # coverage report, HTML in htmlcov/
+make lint format typecheck
+make check              # everything CI should run
+make dev                # server with auto-reload
 ```
 
 ## Licence and data

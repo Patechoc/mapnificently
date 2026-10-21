@@ -1,3 +1,6 @@
+# Third-party files are kept byte-for-byte as published.
+exclude: ^src/mapnificently/web/vendor/
+
 repos:
   # Ruff and mypy run from the project's own environment (uv.lock), so the hooks use the
   # same versions, plugins and stubs as `make check`.

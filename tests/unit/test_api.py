@@ -5,6 +5,7 @@ from fastapi.testclient import TestClient
 from shapely.geometry import shape
 
 from mapnificently.api import create_app
+from mapnificently.models.api import MAX_MINUTES
 from mapnificently.settings import Settings
 from mapnificently.timetable import CityDataStore
 from tests.conftest import COORDS
@@ -18,6 +19,14 @@ def test_list_cities(client: TestClient):
     assert cities["testville"]["data_ready"] is True
     assert cities["nodata"]["data_ready"] is False
     assert cities["testville"]["bbox"]["lon_min"] == 10.70
+
+
+def test_config_exposes_time_limit(client: TestClient):
+    assert client.get("/api/config").json() == {"max_minutes": MAX_MINUTES}
+    ok = {"origins": [A], "departure": "2026-10-22T08:00", "max_minutes": MAX_MINUTES}
+    assert client.post("/api/cities/testville/reach", json=ok).status_code == 200
+    too_long = {**ok, "max_minutes": MAX_MINUTES + 1}
+    assert client.post("/api/cities/testville/reach", json=too_long).status_code == 422
 
 
 def test_get_city_and_unknown(client: TestClient):

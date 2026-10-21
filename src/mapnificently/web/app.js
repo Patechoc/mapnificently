@@ -4,7 +4,7 @@
 // The server returns the earliest arrival at every reached stop; the reachable area is drawn
 // here as walking circles around those stops, so moving the slider needs no new request.
 
-const SLIDER_MAX = 180; // same as MAX_MINUTES in models/api.py
+const FALLBACK_MAX_MINUTES = 180; // used if the server has no /api/config
 const MAX_ORIGINS = 10;
 const MAX_STOP_MARKERS = 4000;
 const COLORS = ["#1f6feb", "#d6336c", "#2f9e44", "#f08c00", "#7048e8",
@@ -18,6 +18,7 @@ const state = {
   stops: null,        // {ids, names, lat: Float64Array, lon: Float64Array}
   origins: [],        // {lat, lon, label, color, marker, reach: {idx: Int32Array, t: Int32Array}}
   detour: 1.2,
+  maxMinutes: FALLBACK_MAX_MINUTES, // from /api/config
   requestSeq: 0,
 };
 
@@ -332,7 +333,7 @@ async function compute() {
       body: {
         origins: state.origins.map((o) => ({ lat: o.lat, lon: o.lon })),
         departure: `${$("date").value}T${$("time").value}`,
-        max_minutes: SLIDER_MAX,
+        max_minutes: state.maxMinutes,
         walk_speed_mps: walkSpeed(),
         max_walk_m: maxWalk(),
       },
@@ -459,7 +460,6 @@ function setSelect(id, value) {
 // ---------------------------------------------------------------- wiring
 
 map.on("click", (e) => addOrigin(e.latlng.lat, e.latlng.lng));
-$("minutes").max = SLIDER_MAX;
 $("minutes").addEventListener("input", redraw);
 $("walk").addEventListener("change", compute);
 $("maxwalk").addEventListener("change", compute);
@@ -481,6 +481,10 @@ $("collapse").addEventListener("click", () => {
 
 async function init() {
   const hash = readHash();
+  try {
+    state.maxMinutes = (await api("/api/config")).max_minutes;
+  } catch { /* older server: keep the fallback */ }
+  $("minutes").max = state.maxMinutes;
   $("date").value = defaultDate();
   $("time").value = "08:00";
   if (hash.at && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(hash.at)) {

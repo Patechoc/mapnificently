@@ -237,9 +237,9 @@ Settings are read from environment variables or a `.env` file:
   serves, because `shapes.txt` is not read.
 - **Approximate walking.** Distances are straight lines × 1.2, not routed along streets. Water and
   motorways are not taken into account.
-- **One area per city.** Each city only has its own operators and area: Moss cannot reach
-  Oslo's metro (Ruter is not in Moss's feeds, and the area ends at 59.95 N). The app says so when
-  a destination is outside the city's area.
+- **One area per city.** Each city only uses its own operators and area. Moss includes Ruter
+  and Flytoget so trips continue into Oslo, but Oslo does not include Østfold. The app says so
+  when a destination is outside the city's area.
 - **Shared tile server.** The web map uses the public OpenStreetMap tiles. Before publishing
   widely, switch to a tile provider that allows that traffic.
 

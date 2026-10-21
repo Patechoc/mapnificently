@@ -40,10 +40,11 @@ attribution = "Timetables: Entur AS / AtB / SJ Nord (NLOD)"
 name = "Moss"
 timezone = "Europe/Oslo"
 center = [59.4340, 10.6590]
-bbox = [10.45, 59.20, 11.00, 59.95]
+# Reaches north over Oslo to Gardermoen, so trips into Oslo can continue by metro, tram or bus.
+bbox = [10.40, 59.20, 11.20, 60.20]
 provider = "entur"
-feeds = ["ost", "vyg"]
-attribution = "Timetables: Entur AS / Østfold kollektivtrafikk / Vy (NLOD)"
+feeds = ["ost", "vyg", "rut", "flt"]
+attribution = "Timetables: Entur AS / Østfold kollektivtrafikk / Vy / Ruter / Flytoget (NLOD)"
 
 # A non-Norwegian example, using a plain GTFS URL:
 #

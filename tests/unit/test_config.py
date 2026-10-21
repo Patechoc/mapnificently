@@ -67,7 +67,7 @@ class TestRegistry:
     def test_packaged_cities(self, settings: Settings):
         cities = load_cities(settings)
         assert {"oslo", "bergen", "trondheim", "moss"} <= set(cities)
-        assert cities["moss"].feeds == ["ost", "vyg"]
+        assert cities["moss"].feeds == ["ost", "vyg", "rut", "flt"]
         assert all(c.provider == "entur" for c in cities.values())
 
     def test_user_file_overrides_and_extends(self, tmp_path: Path):

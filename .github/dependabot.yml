@@ -1,0 +1,21 @@
+# Weekly update PRs, so pinned versions do not go stale (e.g. setup-uv is pinned to an exact
+# release because it publishes no floating major tag). CI checks every update PR.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      github-actions:
+        patterns: ["*"]
+
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      # Minor and patch updates in one PR; major updates get their own, as they may break.
+      python-dependencies:
+        patterns: ["*"]
+        update-types: ["minor", "patch"]

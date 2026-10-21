@@ -73,10 +73,11 @@ html, body {
 #collapse:hover { background: var(--accent-soft); }
 #panel.collapsed #panel-body, #panel.collapsed footer { display: none; }
 
+#panel-time { padding: 4px 16px 0; }
 #panel-body { padding: 4px 16px 12px; overflow-y: auto; }
 .lead { margin: 0 0 6px; color: var(--muted); }
 .lead strong { color: var(--panel-fg); }
-.time-slider { display: block; width: 100%; margin: 0 0 16px; accent-color: var(--accent); }
+.time-slider { display: block; width: 100%; margin: 0 0 12px; accent-color: var(--accent); }
 
 .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; font-weight: 600; font-size: 13px; }
 .field input, .field select {

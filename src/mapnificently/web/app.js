@@ -474,10 +474,19 @@ $("search").addEventListener("keydown", (e) => {
   if (e.key === "Escape") hideResults();
   if (e.key === "Enter" && searchHits.length) chooseHit(searchHits[0]);
 });
-$("collapse").addEventListener("click", () => {
-  const collapsed = $("panel").classList.toggle("collapsed");
-  $("collapse").textContent = collapsed ? "+" : "–";
-});
+// Collapsing hides the settings; the sentence and time slider stay visible.
+function setCollapsed(collapsed) {
+  $("panel").classList.toggle("collapsed", collapsed);
+  const button = $("collapse");
+  const label = collapsed ? "Show settings" : "Hide settings";
+  button.textContent = collapsed ? "+" : "–";
+  button.title = label;
+  button.setAttribute("aria-label", label);
+  button.setAttribute("aria-expanded", String(!collapsed));
+  try { localStorage.setItem("panelCollapsed", collapsed ? "1" : "0"); } catch { /* storage blocked */ }
+}
+$("collapse").addEventListener("click", () => setCollapsed(!$("panel").classList.contains("collapsed")));
+try { if (localStorage.getItem("panelCollapsed") === "1") setCollapsed(true); } catch { /* storage blocked */ }
 
 async function init() {
   const hash = readHash();

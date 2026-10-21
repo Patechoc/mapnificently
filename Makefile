@@ -1,0 +1,187 @@
+# Mapnificently - development and run commands.
+#
+# Run `make` (or `make help`) to list everything. Variables can be overridden on the command
+# line, e.g. `make serve PORT=9000` or `make reach CITY=moss FROM="Moss stasjon" MINUTES=45`.
+
+SHELL := /usr/bin/env bash
+.SHELLFLAGS := -eu -o pipefail -c
+.DEFAULT_GOAL := help
+
+# uv warns when an unrelated virtualenv is active; the project always uses .venv.
+unexport VIRTUAL_ENV
+
+UV  ?= uv
+RUN := $(UV) run
+APP := $(RUN) mapnificently
+
+# Server
+HOST ?= 127.0.0.1
+PORT ?= 8000
+export MAPNIFICENTLY_API_URL ?= http://$(HOST):$(PORT)
+
+# Queries. FROM takes "lat,lon" or a place name; separate several start points with ";".
+CITY    ?= oslo
+FROM    ?= Jernbanetorget
+AT      ?=
+MINUTES ?= 30
+MODE    ?= union
+TOP     ?= 20
+OUT     ?= $(CITY)-$(MINUTES)min.geojson
+Q       ?= $(FROM)
+
+DATA_DIR ?= $(or $(MAPNIFICENTLY_DATA_DIR),$(HOME)/.cache/mapnificently)
+
+# Expands FROM="a;b" into: --from "a" --from "b" (inside a recipe, needs bash).
+define from_args
+IFS=';' read -ra origins <<< "$(FROM)"; args=(); \
+for o in "$${origins[@]}"; do args+=(--from "$$o"); done
+endef
+
+AT_ARG = $(if $(AT),--at $(AT))
+
+##@ Help
+
+.PHONY: help
+help: ## Show this help
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m [VAR=value ...]\n"} \
+		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 } \
+		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
+	@printf "\nVariables: CITY=$(CITY) FROM=\"$(FROM)\" AT=$(AT) MINUTES=$(MINUTES) MODE=$(MODE) PORT=$(PORT)\n\n"
+
+##@ Setup
+
+.PHONY: install
+install: ## Install the app with all development tools into .venv
+	$(UV) sync --all-extras
+
+.PHONY: install-hooks
+install-hooks: install ## Install the git pre-commit hooks
+	$(RUN) pre-commit install
+
+.PHONY: lock
+lock: ## Update uv.lock to the newest allowed versions
+	$(UV) lock --upgrade
+
+##@ Quality
+
+.PHONY: lint
+lint: ## Lint with ruff
+	$(RUN) ruff check .
+
+.PHONY: lint-fix
+lint-fix: ## Lint with ruff and apply safe fixes
+	$(RUN) ruff check --fix .
+
+.PHONY: format
+format: ## Format the code with ruff
+	$(RUN) ruff format .
+
+.PHONY: format-check
+format-check: ## Check formatting without changing files
+	$(RUN) ruff format --check .
+
+.PHONY: typecheck
+typecheck: ## Type-check src/ with mypy (strict)
+	$(RUN) mypy src/
+
+.PHONY: security
+security: ## Scan the code with bandit and the dependencies with pip-audit
+	$(RUN) bandit -c pyproject.toml -r src/
+	$(RUN) pip-audit
+
+.PHONY: check
+check: lint format-check typecheck test ## Run every check CI should run (lint, format, types, tests)
+
+##@ Tests
+
+.PHONY: test
+test: ## Run unit tests (synthetic GTFS feed, no network)
+	$(RUN) pytest
+
+.PHONY: test-integration
+test-integration: ## Run all tests, including those downloading real Entur data (~40 MB)
+	$(RUN) pytest --run-integration
+
+.PHONY: coverage
+coverage: ## Run unit tests with a coverage report (HTML in htmlcov/)
+	$(RUN) pytest --cov --cov-report=term-missing --cov-report=html
+
+##@ Data
+
+.PHONY: data-fetch
+data-fetch: ## Download and prepare timetables for CITY
+	$(APP) data fetch $(CITY)
+
+.PHONY: data-fetch-all
+data-fetch-all: ## Download and prepare timetables for every configured city
+	$(APP) data fetch --all
+
+.PHONY: data-refresh
+data-refresh: ## Re-download CITY's feeds even if unchanged, then rebuild
+	$(APP) data fetch --force $(CITY)
+
+.PHONY: data-status
+data-status: ## Show which cities have data and the dates it covers
+	$(APP) data status
+
+.PHONY: data-clean
+data-clean: ## Delete CITY's downloaded and prepared data (CITY must be given)
+	@if [ "$(origin CITY)" = "file" ] || [ -z "$(strip $(CITY))" ]; then \
+		echo "usage: make data-clean CITY=<city>"; exit 2; fi
+	rm -rf -- "$(DATA_DIR)/$(CITY)"
+	@echo "removed $(DATA_DIR)/$(CITY)"
+
+##@ Run
+
+.PHONY: serve
+serve: ## Run the API and web map on HOST:PORT
+	$(APP) serve --host $(HOST) --port $(PORT)
+
+.PHONY: dev
+dev: ## Run the server with auto-reload on code changes
+	$(APP) serve --host $(HOST) --port $(PORT) --reload
+
+.PHONY: open
+open: ## Open the web map in the browser (server must be running)
+	@url="http://$(HOST):$(PORT)/"; \
+	if command -v wslview >/dev/null; then wslview "$$url"; \
+	elif command -v xdg-open >/dev/null; then xdg-open "$$url"; \
+	elif command -v open >/dev/null; then open "$$url"; \
+	else echo "open $$url in your browser"; fi
+
+.PHONY: openapi
+openapi: ## Write the OpenAPI schema to openapi.json
+	$(RUN) python -c "import json; from mapnificently.api import create_app; \
+	print(json.dumps(create_app().openapi(), indent=2))" > openapi.json
+	@echo "wrote openapi.json"
+
+##@ Queries (need a running server: `make serve` in another terminal)
+
+.PHONY: cities
+cities: ## List cities known to the API
+	$(APP) cities
+
+.PHONY: geocode
+geocode: ## Search places in CITY (Q="text", defaults to FROM)
+	$(APP) geocode $(CITY) "$(Q)"
+
+.PHONY: reach
+reach: ## Stops reachable from FROM within MINUTES (TOP rows, AT optional)
+	@$(from_args); \
+	$(APP) reach $(CITY) "$${args[@]}" --minutes $(MINUTES) --top $(TOP) $(AT_ARG)
+
+.PHONY: isochrone
+isochrone: ## Reachable area from FROM as GeoJSON in OUT (MODE=union|intersection)
+	@$(from_args); \
+	$(APP) isochrone $(CITY) "$${args[@]}" --minutes $(MINUTES) --mode $(MODE) $(AT_ARG) -o "$(OUT)"
+
+##@ Housekeeping
+
+.PHONY: build
+build: ## Build the wheel and sdist into dist/
+	$(UV) build
+
+.PHONY: clean
+clean: ## Remove caches, coverage files and build output (keeps .venv and city data)
+	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage coverage.xml dist build
+	find . -path ./.venv -prune -o -type d -name __pycache__ -exec rm -rf {} +

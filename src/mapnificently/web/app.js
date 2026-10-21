@@ -3,6 +3,8 @@
 // Mapnificently web map: click start points, drag the slider, see where you can get.
 // The server returns the earliest arrival at every reached stop; the reachable area is drawn
 // here as walking circles around those stops, so moving the slider needs no new request.
+// In "route" click mode, a click sets a destination and the panel shows, for every start
+// point, the fastest journey there: each walk, wait and ride.
 
 const FALLBACK_MAX_MINUTES = 180; // used if the server has no /api/config
 const MAX_ORIGINS = 10;
@@ -20,6 +22,10 @@ const state = {
   detour: 1.2,
   maxMinutes: FALLBACK_MAX_MINUTES, // from /api/config
   requestSeq: 0,
+  destination: null,  // {lat, lon, label, marker}
+  route: null,        // {result, origins} or {error}
+  routeSeq: 0,
+  revealRoute: false, // zoom to the next route shown (destination picked off-screen)
 };
 
 // ---------------------------------------------------------------- helpers
@@ -66,6 +72,19 @@ function minutes() { return Number($("minutes").value); }
 function walkSpeed() { return Number($("walk").value); }
 function maxWalk() { return Number($("maxwalk").value); }
 function mode() { return document.querySelector("input[name=mode]:checked").value; }
+function changeMinutes() { return Number($("change").value); }
+function clickMode() { return document.querySelector("input[name=click]:checked").value; }
+
+function departure() { return `${$("date").value}T${$("time").value}`; }
+
+function tripOptions() {
+  return {
+    departure: departure(),
+    walk_speed_mps: walkSpeed(),
+    max_walk_m: maxWalk(),
+    min_change_min: changeMinutes(),
+  };
+}
 
 // ---------------------------------------------------------------- map
 
@@ -78,6 +97,11 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 
 const stopRenderer = L.canvas({ padding: 0.2 });
 const stopLayer = L.layerGroup().addTo(map);
+
+// Route lines sit above the grey veil.
+map.createPane("routes").style.zIndex = 450;
+const routeRenderer = L.svg({ pane: "routes" });
+const routeLayer = L.layerGroup().addTo(map);
 
 function metresPerPixel() {
   const lat = map.getCenter().lat * Math.PI / 180;
@@ -259,7 +283,7 @@ function renderOrigins() {
     dot.style.background = origin.color;
     const label = document.createElement("span");
     label.className = "label";
-    label.textContent = origin.label || `${origin.lat.toFixed(4)}, ${origin.lon.toFixed(4)}`;
+    label.textContent = placeName(origin);
     const meta = document.createElement("span");
     meta.className = "meta";
     const n = reachedCount(origin);
@@ -323,6 +347,7 @@ async function compute() {
   if (!state.origins.length) {
     setStatus("Click the map or search to add a start point.");
     redraw();
+    computeRoute();
     return;
   }
   const seq = ++state.requestSeq;
@@ -332,10 +357,8 @@ async function compute() {
       method: "POST",
       body: {
         origins: state.origins.map((o) => ({ lat: o.lat, lon: o.lon })),
-        departure: `${$("date").value}T${$("time").value}`,
         max_minutes: state.maxMinutes,
-        walk_speed_mps: walkSpeed(),
-        max_walk_m: maxWalk(),
+        ...tripOptions(),
       },
     });
     if (seq !== state.requestSeq) return; // a newer request is on its way
@@ -350,9 +373,251 @@ async function compute() {
     if (seq === state.requestSeq) setStatus(err.message, true);
   }
   redraw();
+  computeRoute();
 }
 
 const computeSoon = debounce(compute, 300);
+
+// ---------------------------------------------------------------- routes
+
+const MODE_NAMES = {
+  bus: "Bus", coach: "Coach", tram: "Tram", metro: "Metro", rail: "Train", ferry: "Ferry",
+  "cable car": "Cable car", funicular: "Funicular", other: "Ride",
+};
+
+const destinationIcon = L.divIcon({
+  className: "", html: '<div class="dest-marker"></div>', iconSize: [20, 20], iconAnchor: [10, 10],
+});
+
+function hhmm(iso) { return iso.slice(11, 16); }
+function fmtMinutes(seconds) { return `${Math.round(seconds / 60)} min`; }
+function fmtDistance(m) { return m < 1000 ? `${m} m` : `${(m / 1000).toFixed(1)} km`; }
+// Places without a name (map clicks, shared links) are named after the nearest stop.
+function nearestStopName(lat, lon) {
+  if (!state.stops) return null;
+  const k = Math.cos(lat * Math.PI / 180) ** 2;
+  let best = -1;
+  let bestD = Infinity;
+  for (let i = 0; i < state.stops.lat.length; i++) {
+    const dLat = state.stops.lat[i] - lat;
+    const dLon = state.stops.lon[i] - lon;
+    const d = dLat * dLat + k * dLon * dLon;
+    if (d < bestD) { bestD = d; best = i; }
+  }
+  return best < 0 ? null : state.stops.names[best];
+}
+function placeName(place) {
+  if (place.label) return place.label;
+  const near = nearestStopName(place.lat, place.lon);
+  return near ? `near ${near}` : `${place.lat.toFixed(4)}, ${place.lon.toFixed(4)}`;
+}
+function originName(origin) { return placeName(origin); }
+function atPlace(name) { return name.startsWith("near ") ? name : `at ${name}`; }
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function setDestination(lat, lon, label = null, { recompute = true, reveal = false } = {}) {
+  if (!state.destination) {
+    const marker = L.marker([lat, lon], { draggable: true, icon: destinationIcon, zIndexOffset: 1000 })
+      .addTo(map);
+    marker.on("dragend", () => {
+      const p = marker.getLatLng();
+      Object.assign(state.destination, { lat: p.lat, lon: p.lng, label: null });
+      computeRoute();
+    });
+    marker.on("contextmenu", () => { clearDestination(); writeHash(); });
+    state.destination = { marker };
+  }
+  Object.assign(state.destination, { lat, lon, label });
+  state.destination.marker.setLatLng([lat, lon]);
+  state.revealRoute = reveal;
+  if (recompute) computeRoute();
+}
+
+function clearDestination() {
+  if (state.destination) map.removeLayer(state.destination.marker);
+  state.destination = null;
+  state.route = null;
+  state.routeSeq++;
+  renderRoute();
+}
+
+async function computeRoute() {
+  writeHash();
+  if (!state.destination || !state.origins.length || !state.stops) {
+    state.route = null;
+    renderRoute();
+    return;
+  }
+  const seq = ++state.routeSeq;
+  const origins = state.origins.slice();
+  $("route-summary").textContent = "Finding the fastest journeys…";
+  try {
+    const result = await api(`/api/cities/${state.city.id}/route`, {
+      method: "POST",
+      body: {
+        origins: origins.map((o) => ({ lat: o.lat, lon: o.lon })),
+        destination: { lat: state.destination.lat, lon: state.destination.lon },
+        max_minutes: state.maxMinutes,
+        ...tripOptions(),
+      },
+    });
+    if (seq !== state.routeSeq) return; // something changed meanwhile
+    state.route = { result, origins };
+  } catch (err) {
+    if (seq !== state.routeSeq) return;
+    state.route = { error: err.message };
+  }
+  renderRoute();
+}
+
+function routeSummary(result, origins) {
+  const reachable = result.journeys.filter((j) => j.reachable);
+  if (!reachable.length) return `Not reachable within ${state.maxMinutes} min.`;
+  if (origins.length === 1) {
+    const j = reachable[0];
+    return `${fmtMinutes(j.duration_s)}, ${j.num_changes} change${j.num_changes === 1 ? "" : "s"}, arrive ${hhmm(j.arrive)}.`;
+  }
+  const missing = result.journeys.length - reachable.length;
+  if (mode() === "intersection") {
+    if (result.everyone_s === null) {
+      return `Not everyone can get there: ${missing} start point${missing === 1 ? "" : "s"} cannot within ${state.maxMinutes} min.`;
+    }
+    const last = result.journeys.findIndex((j) => j.duration_s === result.everyone_s);
+    return `Everyone is there after ${fmtMinutes(result.everyone_s)} (the last to arrive starts ${atPlace(originName(origins[last]))}).`;
+  }
+  const first = result.journeys.findIndex((j) => j.duration_s === result.fastest_s);
+  return `Fastest: from ${originName(origins[first])} in ${fmtMinutes(result.fastest_s)}.`;
+}
+
+function legItems(journey, destLabel) {
+  const items = [];
+  let previousArrive = journey.depart;
+  journey.legs.forEach((leg) => {
+    if (leg.mode !== "walk" && leg.wait_s >= 60) {
+      items.push([hhmm(previousArrive), "wait", `Wait ${fmtMinutes(leg.wait_s)} at ${leg.from_name}`]);
+    }
+    if (leg.mode === "walk") {
+      const minutesWalked = fmtMinutes((Date.parse(leg.arrive) - Date.parse(leg.depart)) / 1000);
+      const to = leg.to_name === "Destination" ? "the destination" : leg.to_name;
+      const text = leg.from_name === leg.to_name
+        ? `Change platform at ${leg.to_name} (${fmtDistance(leg.distance_m)})`
+        : `Walk ${fmtDistance(leg.distance_m)} (${minutesWalked}) to ${to}`;
+      items.push([hhmm(leg.depart), "walk", text]);
+    } else {
+      const towards = leg.headsign ? `towards ${leg.headsign} · ` : "";
+      items.push([hhmm(leg.depart), "ride", leg, `${towards}${leg.num_stops} stop${leg.num_stops === 1 ? "" : "s"}, arrive ${hhmm(leg.arrive)}`]);
+    }
+    previousArrive = leg.arrive;
+  });
+  items.push([hhmm(journey.arrive), "arrive", `Arrive ${atPlace(destLabel)}`]);
+  return items;
+}
+
+function renderJourney(journey, origin, destLabel) {
+  const card = el("article", "journey");
+  const head = el("div", "journey-head");
+  const dot = el("span", "dot");
+  dot.style.cssText = `width:12px;height:12px;border-radius:50%;flex:none;background:${origin.color}`;
+  head.append(dot, el("span", "label", originName(origin)));
+  if (!journey.reachable) {
+    head.append(el("span", "total", "not reachable"));
+    card.append(head);
+    return card;
+  }
+  head.append(el("span", "total", fmtMinutes(journey.duration_s)));
+  card.append(head);
+  const changes = journey.num_changes;
+  card.append(el("div", "journey-meta",
+    `${hhmm(journey.depart)} → ${hhmm(journey.arrive)} · ${changes} change${changes === 1 ? "" : "s"}`));
+  const list = el("ol", "legs");
+  for (const [time, kind, what, detail] of legItems(journey, destLabel)) {
+    const li = el("li");
+    li.append(el("span", "time", time));
+    if (kind === "ride") {
+      const body = el("span");
+      body.append(el("span", `badge ${what.mode}`, `${MODE_NAMES[what.mode] || "Ride"} ${what.line || ""}`.trim()));
+      body.append(document.createTextNode(`${what.from_name} → ${what.to_name}`));
+      body.append(el("small", null, detail));
+      li.append(body);
+    } else {
+      li.append(el("span", kind, what));
+    }
+    list.append(li);
+  }
+  card.append(list);
+  return card;
+}
+
+function drawJourney(journey, origin) {
+  for (const leg of journey.legs) {
+    const path = leg.path.map((p) => [p.lat, p.lon]);
+    const walk = leg.mode === "walk";
+    L.polyline(path, {
+      renderer: routeRenderer, color: origin.color, weight: walk ? 3 : 5, opacity: 0.95,
+      dashArray: walk ? "2 7" : null, lineCap: "round",
+    }).addTo(routeLayer);
+  }
+}
+
+function renderRoute() {
+  routeLayer.clearLayers();
+  const section = $("route");
+  section.hidden = !state.destination;
+  if (!state.destination) return;
+  const dest = state.destination;
+  const destLabel = placeName(dest);
+  $("route-dest").textContent = destLabel;
+  const journeys = $("route-journeys");
+  journeys.replaceChildren();
+  dest.marker.unbindPopup();
+
+  if (!state.origins.length) {
+    $("route-summary").textContent = "Add a start point to see how to get here.";
+    return;
+  }
+  if (!state.route) return;
+  if (state.route.error) {
+    $("route-summary").textContent = state.route.error;
+    return;
+  }
+  const { result, origins } = state.route;
+  const summary = routeSummary(result, origins);
+  $("route-summary").textContent = summary;
+
+  const popup = el("div", "route-popup");
+  popup.append(el("strong", null, destLabel));
+  result.journeys.forEach((journey, i) => {
+    const origin = origins[i];
+    journeys.append(renderJourney(journey, origin, destLabel));
+    if (journey.reachable) drawJourney(journey, origin);
+    const line = el("div");
+    const dot = el("span", "dot");
+    dot.style.background = origin.color;
+    line.append(dot, document.createTextNode(
+      `${originName(origin)}: ${journey.reachable ? fmtMinutes(journey.duration_s) : "not reachable"}`));
+    popup.append(line);
+  });
+  if (origins.length > 1) popup.append(el("div", null, summary));
+  if (state.revealRoute) {
+    // Show the whole route, clear of the panel (beside it on desktop, above it on a phone).
+    state.revealRoute = false;
+    const points = [[dest.lat, dest.lon], ...origins.map((o) => [o.lat, o.lon])];
+    const panel = $("panel").getBoundingClientRect();
+    const phone = panel.width >= window.innerWidth - 1;
+    map.fitBounds(points, {
+      paddingTopLeft: [phone ? 30 : panel.right + 20, 150], // room for the popup above
+      paddingBottomRight: [30, phone ? panel.height + 20 : 40],
+      maxZoom: 14,
+    });
+    if (!$("panel").classList.contains("collapsed")) section.scrollIntoView({ block: "nearest" });
+  }
+  dest.marker.bindPopup(popup, { autoPan: false }).openPopup();
+}
 
 // ---------------------------------------------------------------- cities
 
@@ -364,6 +629,7 @@ async function selectCity(id, { fitView = true } = {}) {
   $("city").value = city.id;
   $("attribution").textContent = city.attribution;
   clearOrigins();
+  clearDestination();
   stopLayer.clearLayers();
   if (fitView) map.setView([city.center.lat, city.center.lon], 12);
   if (!city.data_ready) {
@@ -389,8 +655,12 @@ let searchHits = [];
 function hideResults() { $("search-results").hidden = true; }
 
 function chooseHit(hit) {
-  addOrigin(hit.lat, hit.lon, hit.label);
-  map.panTo([hit.lat, hit.lon]);
+  if (clickMode() === "route") {
+    setDestination(hit.lat, hit.lon, hit.label, { reveal: true });
+  } else {
+    addOrigin(hit.lat, hit.lon, hit.label);
+    map.panTo([hit.lat, hit.lon]);
+  }
   $("search").value = "";
   hideResults();
 }
@@ -431,17 +701,23 @@ function writeHash() {
     w: walkSpeed(),
     mw: maxWalk(),
     mode: mode(),
+    ch: changeMinutes(),
   });
   if (state.origins.length) {
     params.set("o", state.origins.map((o) => `${o.lat.toFixed(5)},${o.lon.toFixed(5)}`).join(";"));
+  }
+  if (state.destination) {
+    params.set("to", `${state.destination.lat.toFixed(5)},${state.destination.lon.toFixed(5)}`);
   }
   history.replaceState(null, "", `#${params}`);
 }
 
 function readHash() {
   const params = new URLSearchParams(location.hash.slice(1));
-  const origins = (params.get("o") || "").split(";").filter(Boolean)
-    .map((s) => s.split(",").map(Number)).filter((p) => p.length === 2 && p.every(Number.isFinite));
+  const point = (s) => s.split(",").map(Number);
+  const valid = (p) => p.length === 2 && p.every(Number.isFinite);
+  const origins = (params.get("o") || "").split(";").filter(Boolean).map(point).filter(valid);
+  const to = params.get("to") ? point(params.get("to")) : null;
   return {
     city: params.get("city"),
     minutes: params.get("t"),
@@ -449,7 +725,9 @@ function readHash() {
     walk: params.get("w"),
     maxWalk: params.get("mw"),
     mode: params.get("mode"),
+    change: params.get("ch"),
     origins,
+    destination: to && valid(to) ? to : null,
   };
 }
 
@@ -459,14 +737,26 @@ function setSelect(id, value) {
 
 // ---------------------------------------------------------------- wiring
 
-map.on("click", (e) => addOrigin(e.latlng.lat, e.latlng.lng));
+map.on("click", (e) => {
+  if (clickMode() === "route") setDestination(e.latlng.lat, e.latlng.lng);
+  else addOrigin(e.latlng.lat, e.latlng.lng);
+});
+for (const radio of document.querySelectorAll("input[name=click]")) {
+  radio.addEventListener("change", () => {
+    $("search-label").textContent = clickMode() === "route" ? "Route to a place" : "Add a start point";
+  });
+}
+$("change").addEventListener("change", compute);
+$("route-clear").addEventListener("click", () => { clearDestination(); writeHash(); });
 $("minutes").addEventListener("input", redraw);
 $("walk").addEventListener("change", compute);
 $("maxwalk").addEventListener("change", compute);
 $("date").addEventListener("change", computeSoon);
 $("time").addEventListener("change", computeSoon);
 $("show-stops").addEventListener("change", renderStops);
-for (const radio of document.querySelectorAll("input[name=mode]")) radio.addEventListener("change", redraw);
+for (const radio of document.querySelectorAll("input[name=mode]")) {
+  radio.addEventListener("change", () => { redraw(); renderRoute(); });
+}
 $("city").addEventListener("change", async () => { await selectCity($("city").value); compute(); });
 $("search").addEventListener("input", runSearch);
 $("search").addEventListener("blur", hideResults);
@@ -502,6 +792,7 @@ async function init() {
   if (hash.minutes) $("minutes").value = hash.minutes;
   setSelect("walk", hash.walk);
   setSelect("maxwalk", hash.maxWalk);
+  setSelect("change", hash.change);
   if (hash.mode === "intersection") document.querySelector("input[value=intersection]").checked = true;
 
   try {
@@ -521,6 +812,7 @@ async function init() {
   await selectCity(preferred, { fitView: true });
   for (const [lat, lon] of hash.origins) addOrigin(lat, lon, null, { recompute: false });
   if (hash.origins.length) map.panTo(hash.origins[0]);
+  if (hash.destination) setDestination(...hash.destination, null, { recompute: false, reveal: true });
   compute();
 }
 

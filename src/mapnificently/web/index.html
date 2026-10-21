@@ -27,8 +27,14 @@
         <select id="city"></select>
       </label>
 
+      <fieldset class="field segmented" id="click-mode">
+        <legend>Clicking the map or a search result</legend>
+        <label><input type="radio" name="click" value="origin" checked><span>Adds a start point</span></label>
+        <label><input type="radio" name="click" value="route"><span>Shows the route</span></label>
+      </fieldset>
+
       <div class="field search">
-        <label for="search">Add a start point</label>
+        <label for="search" id="search-label">Add a start point</label>
         <input id="search" type="search" placeholder="Search an address or stop, or click the map" autocomplete="off">
         <ul id="search-results" hidden></ul>
       </div>
@@ -55,6 +61,19 @@
         </label>
       </div>
 
+      <div class="row">
+        <label class="field">Min. change time
+          <select id="change">
+            <option value="0">None</option>
+            <option value="1">1 min</option>
+            <option value="2" selected>2 min</option>
+            <option value="3">3 min</option>
+            <option value="5">5 min</option>
+            <option value="10">10 min</option>
+          </select>
+        </label>
+      </div>
+
       <fieldset class="field" id="mode-field">
         <legend>With several start points, show</legend>
         <label><input type="radio" name="mode" value="union" checked> where anyone can get</label>
@@ -64,6 +83,16 @@
       <label class="check"><input id="show-stops" type="checkbox"> Show reached stops</label>
 
       <ol id="origins"></ol>
+
+      <section id="route" hidden aria-live="polite">
+        <header>
+          <h2>Route to <span id="route-dest"></span></h2>
+          <button id="route-clear" type="button" title="Remove the destination" aria-label="Remove the destination">×</button>
+        </header>
+        <p id="route-summary"></p>
+        <div id="route-journeys"></div>
+      </section>
+
       <p id="status" role="status"></p>
     </div>
     <footer>

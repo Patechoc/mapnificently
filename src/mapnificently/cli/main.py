@@ -353,11 +353,12 @@ def _minutes(seconds: int) -> str:
     return f"{round(seconds / 60)} min"
 
 
-def _describe_leg(leg: dict[str, Any]) -> str:
+def _describe_leg(leg: dict[str, Any], dest_label: str) -> str:
     if leg["mode"] == "walk":
         if leg["from_name"] == leg["to_name"]:
             return f"walk {leg['distance_m']} m to another platform at {leg['to_name']}"
-        return f"walk {leg['distance_m']} m to {leg['to_name']}"
+        to = dest_label if leg["to_name"] == "Destination" else leg["to_name"]
+        return f"walk {leg['distance_m']} m to {to}"
     towards = f" towards {leg['headsign']}" if leg["headsign"] else ""
     stops = leg["num_stops"]
     return (
@@ -416,9 +417,8 @@ def route(
         )
         for leg in journey["legs"]:
             wait = f"   (wait {_minutes(leg['wait_s'])})" if leg["wait_s"] >= 60 else ""
-            click.echo(
-                f"  {_hhmm(leg['depart'])}-{_hhmm(leg['arrive'])}  {_describe_leg(leg)}{wait}"
-            )
+            times = f"{_hhmm(leg['depart'])}-{_hhmm(leg['arrive'])}"
+            click.echo(f"  {times}  {_describe_leg(leg, dest_label)}{wait}")
     if len(starts) > 1:
         fastest, everyone = result["fastest_s"], result["everyone_s"]
         summary = f"fastest {_minutes(fastest)}" if fastest is not None else "nobody gets there"

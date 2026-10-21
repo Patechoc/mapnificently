@@ -7,6 +7,13 @@ original [Mapnificent](https://www.mapnificent.net/). Pick a city, click one or 
 on the map and drag the time slider. Everything you can reach by transit plus walking stays clear,
 and the rest of the map is greyed out.
 
+![The reachable area growing minute by minute from Oslo S, Bergen stasjon and Trondheim S](docs/media/cities.gif)
+
+*From the main station of Oslo, Bergen and Trondheim at 08:00 on a weekday, each frame adds one
+minute of travel time. The area grows in fingers along the metro, tram and train lines, and in
+circles around each stop: the walk you still have time for. Halfway through each city the
+settings panel is collapsed, keeping only the time slider.*
+
 - **Web map** (Leaflet), served by the API:
   - several start points
   - "where anyone can get" (union) or "where everyone can get" (intersection)
@@ -24,6 +31,25 @@ Configured cities: **Oslo and Moss** (sharing the **Oslofjord** region: Oslo, Ak
 Drammen and Vestfold, with Ruter, Vy, Østfold kollektivtrafikk, Flytoget, Brakar, VKT, Go-Ahead
 and SJ), **Bergen** and **Trondheim**. Their data comes from
 [Entur](https://developer.entur.org/), Norway's national journey planner, under the NLOD licence.
+
+## What you can do with it
+
+**Where can we meet?** Add a start point for each person. "Where anyone can get" shows
+everything at least one of you reaches in time; "where everyone can get" keeps only the places
+all of you reach: the possible meeting points.
+
+![Two start points: first where either can get, then where both can get](docs/media/meeting-point.gif)
+
+*Majorstuen and Lillestrøm, 08:00: first where either person can get, then the meeting area,
+which appears near Oslo S after about 20 minutes and grows from there.*
+
+**How do I get there?** Switch clicks to "Shows the route" and pick a place: the panel lists
+every walk, wait and ride for each start point, and the map draws the route.
+
+![The route from Moss stasjon to Nasjonalarkivet, leg by leg](docs/media/route.png)
+
+*Moss stasjon → Nasjonalarkivet: RE20 to Oslo S, a 5-minute walk to Jernbanetorget, then
+metro 5 to Sognsvann: 71 minutes with one change.*
 
 ## Quick start
 
@@ -128,7 +154,10 @@ While scanning, the router remembers how it reached every stop: which vehicle, w
 boarded it, and any walk after getting off. To answer a route query it picks the quickest way
 to the destination (walk all the way, or ride to a stop near it and walk) and follows those
 records back to the start. Each leg has its mode, line, direction, stops, times, and the
-waiting before it.
+waiting before it. Where a vehicle could be boarded at several stops in time, the journey uses
+the one reached with the fewest vehicles (then the latest), so it shows "walk to
+Jernbanetorget and wait for metro 5" rather than an extra one-stop ride to meet metro 5
+further on; the arrival time is the same.
 
 With several start points you get one journey per start point, plus two summaries:
 `fastest_s`, the quickest journey ("where anyone can get"), and `everyone_s`, when the last
@@ -137,10 +166,10 @@ there within the time limit.
 
 Typical timings on a laptop:
 
-| City | Query | Time |
+| Region | Query | Time |
 |---|---|---|
-| Oslo (Ruter + Vy, about 440k connections a day) | `/reach` with a 120-minute window | about 10–20 ms |
-| Oslo | 30-minute `/isochrone` polygon | about 70 ms |
+| Oslofjord (15,800 stops, about 700k connections a day) | `/reach` with a 120-minute window | about 30 ms |
+| Oslofjord | 30-minute `/isochrone` polygon | about 75 ms |
 
 ## Regions, cities and stored data
 
@@ -300,6 +329,19 @@ make lint format typecheck
 make check              # everything CI should run
 make dev                # server with auto-reload
 ```
+
+### README images
+
+The GIFs and the screenshot in `docs/media/` are recorded from the running app, so they can be
+redone whenever the app or the data changes:
+
+```bash
+make readme-media      # starts its own server, records with Chromium, writes docs/media/
+```
+
+It needs the Oslofjord, Bergen and Trondheim data (`make data-fetch-all`) and Chromium for
+Playwright (the target prints the install command if it is missing). The GIFs stay small
+because frames share one palette and only store the pixels that changed.
 
 ### Continuous integration
 

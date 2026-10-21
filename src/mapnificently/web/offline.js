@@ -328,6 +328,10 @@
     const last = distanceTo(net, bestStop, destination) * detour;
     if (last >= MIN_WALK_LEG_M) {
       legs.push({ kind: "walk", from: bestStop, to: null, depart: result.arrival[bestStop], arrive: bestT, distance: last });
+    } else if (legs.length && legs[legs.length - 1].kind === "walk") {
+      // The destination is right at the stop we walked to: that walk ends at the destination.
+      legs[legs.length - 1].to = null;
+      legs[legs.length - 1].arrive = bestT;
     }
     return { arrive: bestT, legs };
   }

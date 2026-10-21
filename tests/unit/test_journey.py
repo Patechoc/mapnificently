@@ -178,3 +178,13 @@ def test_boards_where_fewest_vehicles_are_needed(tmp_path: Path):
     assert rides == [("Y", "Stop R", "Stop S")]
     assert journey.num_changes == 0
     assert journey.duration_s == 20 * 60  # the same arrival as riding X then Y
+
+
+def test_last_walk_ends_at_the_destination(store: CityDataStore, test_city: CityConfig):
+    """Destination right at F, which is reached on foot from C: that walk is to the destination."""
+    [journey] = route(store, test_city, [at("A")], at("F")).journeys
+    *_, ride, walk = journey.legs
+    assert (ride.line, ride.to_name) == ("1", "Stop C")
+    assert (walk.mode, walk.from_name, walk.to_name) == ("walk", "Stop C", "Destination")
+    assert 50 < walk.distance_m < 100
+    assert walk.arrive == journey.arrive

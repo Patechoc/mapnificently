@@ -201,4 +201,8 @@ def itinerary_to(
         legs.append(
             Leg("walk", best_stop, None, result.arrival[best_stop], best_t, distance_m=last)
         )
+    elif legs and legs[-1].kind == "walk":
+        # The destination is right at the stop we walked to: that walk ends at the destination.
+        legs[-1].to_stop = None
+        legs[-1].arrive_s = best_t
     return Itinerary(arrive_s=best_t, legs=legs)

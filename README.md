@@ -48,10 +48,10 @@ which appears near Oslo S after about 20 minutes and grows from there.*
 **How do I get there?** Switch clicks to "Shows the route" and pick a place: the panel lists
 every walk, wait and ride for each start point, and the map draws the route.
 
-![The route from Moss stasjon to Nasjonalarkivet, leg by leg](docs/media/route.png)
+![The route from Moss stasjon to Helsfyr, Oslo, leg by leg](docs/media/route.png)
 
-*Moss stasjon → Nasjonalarkivet: RE20 to Oslo S, a 5-minute walk to Jernbanetorget, then
-metro 5 to Sognsvann: 71 minutes with one change.*
+*Moss stasjon → Helsfyr, Oslo, at 08:00 on a weekday: RE20 to Oslo S, a 5-minute walk to
+Jernbanetorget, then metro 3 to Helsfyr: 52 minutes with one change.*
 
 ## Quick start
 

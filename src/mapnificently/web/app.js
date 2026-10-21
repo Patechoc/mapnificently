@@ -519,7 +519,8 @@ function legItems(journey, destLabel) {
       items.push([hhmm(previousArrive), "wait", `Wait ${fmtMinutes(leg.wait_s)} at ${leg.from_name}`]);
     }
     if (leg.mode === "walk") {
-      const minutesWalked = fmtMinutes((Date.parse(leg.arrive) - Date.parse(leg.depart)) / 1000);
+      const walkSeconds = (Date.parse(leg.arrive) - Date.parse(leg.depart)) / 1000;
+      const minutesWalked = walkSeconds < 30 ? "<1 min" : fmtMinutes(walkSeconds);
       const to = leg.to_name === "Destination" ? "the destination" : leg.to_name;
       const text = leg.from_name === leg.to_name
         ? `Change platform at ${leg.to_name} (${fmtDistance(leg.distance_m)})`

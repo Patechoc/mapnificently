@@ -139,20 +139,20 @@ def record_meeting(page: Page, base: str, day: date, frames: Path) -> list[list[
 
 
 def record_route(page: Page, base: str, day: date, out: Path) -> None:
-    """Moss stasjon → Nasjonalarkivet, leg by leg."""
+    """Moss stasjon → Helsfyr, Oslo, leg by leg."""
     page.set_viewport_size({"width": 1100, "height": 820})
-    url = f"{base}#city=moss&o=59.43214,10.65705&to=59.96678,10.73550&t=75&at={day}T08:00&ch=2"
+    url = f"{base}#city=moss&o=59.43214,10.65705&to=59.91267,10.80105&t=60&at={day}T08:00&ch=2"
     page.goto(url)
     page.reload()
     page.wait_for_function("state.route && state.route.result", timeout=60_000)
     page.evaluate(
-        "state.origins[0].label = 'Moss stasjon'; state.destination.label = 'Nasjonalarkivet';"
+        "state.origins[0].label = 'Moss stasjon'; state.destination.label = 'Helsfyr, Oslo';"
         " renderRoute(); renderOrigins();"
     )
-    # Start the panel at the start-point list, so no half-cut setting shows above the route.
+    # Start the panel at the change-time row, so no half-cut setting shows above the route.
     page.evaluate(
         "() => { const body = $('panel-body');"
-        " body.scrollTop = $('origins').offsetTop - body.offsetTop - 4; }"
+        " body.scrollTop = $('change').closest('.row').offsetTop - body.offsetTop - 4; }"
     )
     settle(page)
     page.screenshot(path=out.with_suffix(".tmp.png"))
@@ -213,6 +213,13 @@ def main() -> None:
     parser.add_argument("--base-url", default="http://127.0.0.1:8000/")
     parser.add_argument("--out", type=Path, default=Path("docs/media"))
     parser.add_argument("--date", type=date.fromisoformat, default=next_weekday())
+    parser.add_argument(
+        "--only",
+        nargs="+",
+        choices=["cities", "meeting", "route"],
+        default=["cities", "meeting", "route"],
+        help="Record only these (default: all).",
+    )
     args = parser.parse_args()
     base = args.base_url.rstrip("/") + "/"
     args.out.mkdir(parents=True, exist_ok=True)
@@ -221,9 +228,12 @@ def main() -> None:
         frames = Path(tmp)
         browser = p.chromium.launch()
         page = browser.new_page(viewport=SIZE, device_scale_factor=1)
-        write_gif(record_cities(page, base, args.date, frames), args.out / "cities.gif")
-        write_gif(record_meeting(page, base, args.date, frames), args.out / "meeting-point.gif")
-        record_route(page, base, args.date, args.out / "route.png")
+        if "cities" in args.only:
+            write_gif(record_cities(page, base, args.date, frames), args.out / "cities.gif")
+        if "meeting" in args.only:
+            write_gif(record_meeting(page, base, args.date, frames), args.out / "meeting-point.gif")
+        if "route" in args.only:
+            record_route(page, base, args.date, args.out / "route.png")
         browser.close()
     for path in sorted(args.out.iterdir()):
         print(f"{path}: {path.stat().st_size / 1e6:.2f} MB")

@@ -152,3 +152,12 @@ def test_route(client: TestClient):
     assert result["min_change_min"] == 2
     too_long = client.post("/api/cities/testville/route", json={**body, "min_change_min": 20})
     assert too_long.status_code == 422
+
+
+def test_refresh_can_be_disabled(settings: Settings, store: CityDataStore):
+    """The Docker image sets MAPNIFICENTLY_ALLOW_REFRESH=false for public servers."""
+    store.settings = settings.model_copy(update={"allow_refresh": False})
+    with TestClient(create_app(store.settings, store)) as client:
+        response = client.post("/api/cities/testville/refresh")
+    assert response.status_code == 403
+    assert "disabled" in response.json()["detail"]

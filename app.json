@@ -1,0 +1,17 @@
+{
+    "name": "mapnificently",
+    "env": {
+        "MAPNIFICENTLY_ENTUR_CLIENT_NAME": {
+            "description": "Name sent to Entur with address searches: <organisation>-<application>, not an e-mail",
+            "value": "mapnificently-demo",
+            "required": false
+        }
+    },
+    "options": {
+        "allow-unauthenticated": true,
+        "memory": "1Gi",
+        "cpu": "1",
+        "concurrency": 20,
+        "max-instances": 2
+    }
+}

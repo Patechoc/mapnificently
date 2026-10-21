@@ -29,6 +29,11 @@ class Settings(BaseSettings):
         description="Base URL of the API, used by the CLI.",
     )
     timetable_cache_size: int = Field(default=4, ge=1, description="Timetables kept in memory.")
+    allow_refresh: bool = Field(
+        default=True,
+        description="Allow POST /api/cities/{city}/refresh. Turn off on public servers, where "
+        "anyone could otherwise trigger downloads and heavy processing.",
+    )
 
     @property
     def feeds_root(self) -> Path:

@@ -116,8 +116,13 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
     ) -> dict[str, str]:
         """Download the feeds of the city's region again and rebuild it, in the background.
 
-        Every city of the same region gets the new data.
+        Every city of the same region gets the new data. Answers 403 when the server has
+        `MAPNIFICENTLY_ALLOW_REFRESH=false` (as the Docker image does).
         """
+        if not store.settings.allow_refresh:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "refreshing data is disabled on this server"
+            )
         background.add_task(store.refresh, city.id, force=force)
         return {"status": "accepted", "city": city.id}
 

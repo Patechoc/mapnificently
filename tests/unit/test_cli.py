@@ -180,3 +180,22 @@ def test_human_sizes(size: int, text: str):
     from mapnificently.cli.main import _human  # noqa: PLC0415
 
     assert _human(size) == text
+
+
+def test_serve_reads_port_from_the_environment(monkeypatch: pytest.MonkeyPatch):
+    """Cloud Run tells the container which port to use through $PORT."""
+    import uvicorn  # noqa: PLC0415
+
+    calls = []
+    monkeypatch.setattr(uvicorn, "run", lambda *args, **kwargs: calls.append(kwargs))
+    result = CliRunner().invoke(cli, ["serve", "--host", "0.0.0.0"], env={"PORT": "9090"})  # noqa: S104
+    assert result.exit_code == 0, result.output
+    assert calls[0]["port"] == 9090
+    assert calls[0]["host"] == "0.0.0.0"  # noqa: S104
+
+
+def test_data_regions(local_env: Path):
+    result = CliRunner().invoke(cli, ["data", "regions"])
+    assert result.exit_code == 0, result.output
+    assert "testville" in result.output.split()
+    assert "oslofjord" in result.output.split()

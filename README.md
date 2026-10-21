@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Patechoc/mapnificently/actions/workflows/ci.yml/badge.svg)](https://github.com/Patechoc/mapnificently/actions/workflows/ci.yml)
 
+[![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/Patechoc/mapnificently.git) *your own copy, with the data of every city included ([details](#run-it-on-google-cloud-cloud-run))*
+
 Where can you get by public transport in a given time? Mapnificently is a Python take on the
 original [Mapnificent](https://www.mapnificent.net/). Pick a city, click one or more start points
 on the map and drag the time slider. Everything you can reach by transit plus walking stays clear,
@@ -75,6 +77,44 @@ make check                        # lint, format check, mypy and tests
 Separate several start points in `FROM` with `;`. The query targets use a server started with
 `make serve` when one is running, and otherwise answer locally. (`make static-serve` serves
 only the static site, which has no API.)
+
+## Run it on Google Cloud (Cloud Run)
+
+[![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/Patechoc/mapnificently.git)
+
+The button opens Google Cloud Shell, builds this repository's `Dockerfile` and deploys it to
+Cloud Run **in your own Google Cloud project, billed to you** (a billing account is needed;
+a demo that sleeps when idle costs little). The image contains the prepared data of every
+configured region, so the app is ready as soon as it starts.
+
+`app.json` sets what the deployment uses: 1 GiB of memory, at most 2 instances (a cap on
+costs), public access, and it asks for the name sent to Entur with address searches.
+
+Good to know:
+
+- **Data is as fresh as the image.** It is downloaded while building and valid until the
+  feeds' end dates (`make data-status` shows them). Deploy again to refresh it.
+- **Refreshing over HTTP is off** in the image (`MAPNIFICENTLY_ALLOW_REFRESH=false`), so
+  nobody can make a public server re-download everything.
+- **Building needs about 1.5 GB of memory** (preparing Bergen is the peak). If the build in
+  Cloud Shell runs out, build on Google's build servers instead:
+  `gcloud run deploy mapnificently --source . --memory 1Gi --allow-unauthenticated`.
+- **Map tiles** come from OpenStreetMap's public server, whose policy does not allow heavy
+  traffic: switch the tile provider before sharing a deployment widely.
+- **Cold starts:** an idle instance is stopped; the first request after a pause loads a
+  city's data in about a second.
+
+### Test the container locally
+
+```bash
+make docker-build     # the same image Cloud Run builds (~1 min, downloads the timetables)
+make docker-run       # http://127.0.0.1:8080
+make docker-test      # build, start and smoke-test: page, API, every city's data, a route
+make docker-shell     # a shell inside the image, e.g. to run `mapnificently data status`
+```
+
+The container listens on `$PORT` (8080 by default, as on Cloud Run), runs as a non-root user
+and keeps about 16 MB of prepared data; it uses about 160 MB of memory at rest.
 
 ## CLI
 
@@ -301,6 +341,8 @@ Settings are read from environment variables or a `.env` file:
 | `MAPNIFICENTLY_CITIES_FILE` | – | Extra cities, or overrides of packaged ones |
 | `MAPNIFICENTLY_ENTUR_CLIENT_NAME` | `mapnificently-dev` | Sent to Entur as `ET-Client-Name`. Use `<organisation>-<application>`, never a personal email |
 | `MAPNIFICENTLY_API_URL` | `http://127.0.0.1:8000` | Used by the CLI |
+| `MAPNIFICENTLY_ALLOW_REFRESH` | `true` | Allow `POST /api/cities/{city}/refresh` (`false` in the Docker image) |
+| `PORT` | `8000` | Port of `mapnificently serve` (set by Cloud Run; `8080` in the Docker image) |
 
 ## Known limitations
 
@@ -353,6 +395,7 @@ because frames share one palette and only store the pixels that changed.
 | Tests | the unit tests with coverage on Python 3.12, 3.13 and 3.14 |
 | Security | bandit and pip-audit on the locked dependencies (also weekly, for new advisories) |
 | Integration | the tests on real Entur data: weekly and on demand (Actions → CI → Run workflow) |
+| Docker | builds the image and smoke-tests it (`make docker-test`): on `main`, weekly and on demand |
 
 Set the repository variable `ENTUR_CLIENT_NAME` (Settings → Secrets and variables → Actions →
 Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.

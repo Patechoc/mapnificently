@@ -14,6 +14,7 @@ import click
 import httpx
 
 from mapnificently import __version__
+from mapnificently.models.api import MAX_MINUTES
 from mapnificently.settings import get_settings
 
 COORD_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
@@ -239,7 +240,7 @@ def geocode(ctx: click.Context, city: str, text: str, limit: int) -> None:
 @cli.command()
 @click.argument("city")
 @with_trip_options
-@click.option("--minutes", default=30, show_default=True, type=click.IntRange(1, 180))
+@click.option("--minutes", default=30, show_default=True, type=click.IntRange(1, MAX_MINUTES))
 @click.option("--top", default=20, show_default=True, help="Rows to show (0 = all).")
 @click.option("--json", "as_json", is_flag=True, help="Print the raw API response.")
 @click.pass_context
@@ -285,7 +286,7 @@ def reach(
 @cli.command()
 @click.argument("city")
 @with_trip_options
-@click.option("--minutes", default=30, show_default=True, type=click.IntRange(1, 180))
+@click.option("--minutes", default=30, show_default=True, type=click.IntRange(1, MAX_MINUTES))
 @click.option(
     "--mode",
     type=click.Choice(["union", "intersection"]),

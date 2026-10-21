@@ -4,7 +4,7 @@
 // The server returns the earliest arrival at every reached stop; the reachable area is drawn
 // here as walking circles around those stops, so moving the slider needs no new request.
 
-const SLIDER_MAX = 120;
+const SLIDER_MAX = 180; // same as MAX_MINUTES in models/api.py
 const MAX_ORIGINS = 10;
 const MAX_STOP_MARKERS = 4000;
 const COLORS = ["#1f6feb", "#d6336c", "#2f9e44", "#f08c00", "#7048e8",

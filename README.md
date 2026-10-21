@@ -10,6 +10,9 @@ and the rest of the map is greyed out.
   - "where anyone can get" (union) or "where everyone can get" (intersection)
   - a slider that redraws instantly
   - address search
+  - routes: click a destination to see the fastest journey from each start point, with every
+    walk, wait and ride, drawn on the map
+  - a minimum change time between vehicles (2 minutes by default)
   - shareable URLs
 - **HTTP API** (FastAPI, OpenAPI docs at `/docs`)
 - **CLI** (click) for the API and for managing data
@@ -35,6 +38,7 @@ Queries and Housekeeping. Variables are set on the command line:
 ```bash
 make reach CITY=moss FROM="Moss stasjon" AT=2026-10-22T07:30 MINUTES=45
 make isochrone FROM="Majorstuen;Oslo lufthavn" MINUTES=60 MODE=intersection OUT=meet.geojson
+make route CITY=moss FROM="Moss stasjon;Rygge stasjon" TO="Oslo S" CHANGE=3
 make check                        # lint, format check, mypy and tests
 ```
 
@@ -55,6 +59,17 @@ mapnificently reach moss --from "Moss stasjon" --at 2026-10-22T07:30 --minutes 4
 mapnificently isochrone oslo --from Jernbanetorget --minutes 30 -o oslo-30.geojson
 mapnificently isochrone oslo --from Majorstuen --from "Oslo lufthavn" \
     --minutes 60 --mode intersection -o meet.geojson
+mapnificently route moss --from "Moss stasjon" --from "Rygge stasjon" --to "Oslo S" --at 08:00
+```
+
+Every query takes `--min-change` (minutes needed to change between vehicles, default 2),
+`--walk-speed` and `--max-walk`. `route` prints each journey leg by leg:
+
+```
+From Moss stasjon, Moss to Oslo S, Oslo: 42 min, 0 changes, arrive 08:41
+  08:00-08:00  walk 44 m to Moss stasjon
+  08:08-08:40  rail RE20 towards Oslo S: Moss stasjon → Oslo S (2 stops)   (wait 7 min)
+  08:40-08:41  walk 116 m to Oslo S, Oslo
 ```
 
 The GeoJSON output can be opened in QGIS or on [geojson.io](https://geojson.io).
@@ -63,6 +78,7 @@ The GeoJSON output can be opened in QGIS or on [geojson.io](https://geojson.io).
 
 | Method | Path | What |
 |---|---|---|
+| GET | `/api/config` | Limits the web map adapts to (longest travel time) |
 | GET | `/api/cities` | Configured cities and whether their data is ready |
 | GET | `/api/cities/{city}/status` | Feeds, number of stops and trips, service dates |
 | POST | `/api/cities/{city}/refresh` | Re-download and rebuild the data, in the background |
@@ -70,6 +86,7 @@ The GeoJSON output can be opened in QGIS or on [geojson.io](https://geojson.io).
 | GET | `/api/cities/{city}/geocode?q=` | Address and stop search |
 | POST | `/api/cities/{city}/reach` | Earliest arrival at every reachable stop, per origin |
 | POST | `/api/cities/{city}/isochrone` | Reachable area as GeoJSON (union or intersection) |
+| POST | `/api/cities/{city}/route` | Fastest journey from each origin to a destination, leg by leg |
 
 A departure without a timezone is read in the city's local time. Errors are `404` for an unknown
 city, `409` when the city's data hasn't been fetched yet, and `422` for an invalid request.
@@ -89,6 +106,28 @@ This is the original Mapnificent model. Around a stop you reach after `t` minute
 walk for `T − t` minutes, so the reachable area is the union of those circles. Walking distance
 is taken as 1.2 × the straight-line distance. The web map draws the circles itself from the
 `/reach` response, so moving the slider doesn't need a new request.
+
+### Changes between vehicles
+
+The router keeps two times for every stop: when you **arrive** there (what the map shows), and
+when you are **ready to board** there. Changing from one vehicle to another takes at least the
+minimum change time (2 minutes by default, 0–15), or the walk to another stop if that is longer.
+Staying on the same vehicle needs no change time, and neither does your first boarding after
+walking from the start point. Waiting is included automatically: all times are clock times,
+so you simply take the first vehicle that leaves after you are ready.
+
+### Routes
+
+While scanning, the router remembers how it reached every stop: which vehicle, where you
+boarded it, and any walk after getting off. To answer a route query it picks the quickest way
+to the destination (walk all the way, or ride to a stop near it and walk) and follows those
+records back to the start. Each leg has its mode, line, direction, stops, times, and the
+waiting before it.
+
+With several start points you get one journey per start point, plus two summaries:
+`fastest_s`, the quickest journey ("where anyone can get"), and `everyone_s`, when the last
+person arrives ("where everyone can get"). `everyone_s` is null when a start point cannot get
+there within the time limit.
 
 Typical timings on a laptop:
 
@@ -161,8 +200,10 @@ Settings are read from environment variables or a `.env` file:
 
 - **Timetables only.** Real-time delays and cancellations are ignored.
 - **No ferry to Horten from Moss.** The Moss–Horten ferry is not in the `ost` or `vyg` feeds.
-- **Simplified transfers.** The router changes vehicles with no minimum transfer time, and
-  `transfers.txt` is not used.
+- **One change time for every stop.** The minimum change time is the same everywhere; a
+  feed's own `transfers.txt` is not used.
+- **Straight ride lines.** Routes are drawn as straight lines between the stops a vehicle
+  serves, because `shapes.txt` is not read.
 - **Approximate walking.** Distances are straight lines × 1.2, not routed along streets. Water and
   motorways are not taken into account.
 - **Shared tile server.** The web map uses the public OpenStreetMap tiles. Before publishing

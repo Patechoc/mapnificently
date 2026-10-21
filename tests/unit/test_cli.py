@@ -155,3 +155,5 @@ def test_route(client: TestClient):
     assert "20 min, 0 changes, arrive 08:20" in result.output
     assert "bus 1 towards Stop D: Stop A → Stop D (3 stops)" in result.output
     assert "Fastest 5 min, everyone there after 20 min." in result.output
+    assert "m to 59.91,10.78" in result.output  # the walk names the destination as given
+    assert "Destination" not in result.output

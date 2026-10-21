@@ -26,6 +26,8 @@ AT      ?=
 MINUTES ?= 30
 MODE    ?= union
 TOP     ?= 20
+TO      ?= Oslo S
+CHANGE  ?= 2
 OUT     ?= $(CITY)-$(MINUTES)min.geojson
 Q       ?= $(FROM)
 
@@ -37,7 +39,7 @@ IFS=';' read -ra origins <<< "$(FROM)"; args=(); \
 for o in "$${origins[@]}"; do args+=(--from "$$o"); done
 endef
 
-AT_ARG = $(if $(AT),--at $(AT))
+AT_ARG = $(if $(AT),--at $(AT)) --min-change $(CHANGE)
 
 ##@ Help
 
@@ -46,7 +48,7 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m [VAR=value ...]\n"} \
 		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
-	@printf "\nVariables: CITY=$(CITY) FROM=\"$(FROM)\" AT=$(AT) MINUTES=$(MINUTES) MODE=$(MODE) PORT=$(PORT)\n\n"
+	@printf "\nVariables: CITY=$(CITY) FROM=\"$(FROM)\" TO=\"$(TO)\" AT=$(AT) MINUTES=$(MINUTES) MODE=$(MODE) CHANGE=$(CHANGE) PORT=$(PORT)\n\n"
 
 ##@ Setup
 
@@ -169,6 +171,11 @@ geocode: ## Search places in CITY (Q="text", defaults to FROM)
 reach: ## Stops reachable from FROM within MINUTES (TOP rows, AT optional)
 	@$(from_args); \
 	$(APP) reach $(CITY) "$${args[@]}" --minutes $(MINUTES) --top $(TOP) $(AT_ARG)
+
+.PHONY: route
+route: ## Fastest journey from FROM to TO, leg by leg (CHANGE = min. change minutes)
+	@$(from_args); \
+	$(APP) route $(CITY) "$${args[@]}" --to "$(TO)" $(AT_ARG)
 
 .PHONY: isochrone
 isochrone: ## Reachable area from FROM as GeoJSON in OUT (MODE=union|intersection)

@@ -256,8 +256,8 @@ To publish on GitHub Pages, put the contents of `site/` on the branch or folder 
 
 > Publishing makes AI-generated code and content public. Within Norwegian Red Cross, check
 > with AI-ansvarlig first (the AI rules on responsibility, review and openness about AI use
-> apply). The page states that the code was written with AI assistance, and the timetable
-> data is open (NLOD, attribution shown).
+> apply). The page states that the code was written with AI assistance (Claude Opus 5.5 by
+> Anthropic), and the timetable data is open (NLOD, attribution shown).
 
 The server version works offline too, except for address search (Entur/Photon online) and map
 tiles not yet viewed. Set `UV_OFFLINE=1` so `uv run`/`make` never try to download.
@@ -317,6 +317,7 @@ Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.
 
 ## Licence and data
 
-The code is MIT-licensed and was written with AI assistance (Claude).
+The code is MIT-licensed and was written with AI assistance from Claude Opus 5.5 by Anthropic
+(model id `claude-opus-5-5`), used through Claude Code.
 Timetables: © Entur AS and the transport operators, under the
 [NLOD](https://data.norge.no/nlod/en/2.0) licence. Map tiles: © OpenStreetMap contributors.

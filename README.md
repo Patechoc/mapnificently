@@ -1,5 +1,7 @@
 # Mapnificently
 
+[![CI](https://github.com/Patechoc/mapnificently/actions/workflows/ci.yml/badge.svg)](https://github.com/Patechoc/mapnificently/actions/workflows/ci.yml)
+
 Where can you get by public transport in a given time? Mapnificently is a Python take on the
 original [Mapnificent](https://www.mapnificent.net/). Pick a city, click one or more start points
 on the map and drag the time slider. Everything you can reach by transit plus walking stays clear,
@@ -298,6 +300,20 @@ make lint format typecheck
 make check              # everything CI should run
 make dev                # server with auto-reload
 ```
+
+### Continuous integration
+
+`.github/workflows/ci.yml` runs on every push to `main` and every pull request:
+
+| Job | What |
+|---|---|
+| Quality | all pre-commit hooks (ruff, format, mypy, bandit, detect-secrets, file checks) |
+| Tests | the unit tests with coverage on Python 3.12, 3.13 and 3.14 |
+| Security | bandit and pip-audit on the locked dependencies (also weekly, for new advisories) |
+| Integration | the tests on real Entur data: weekly and on demand (Actions → CI → Run workflow) |
+
+Set the repository variable `ENTUR_CLIENT_NAME` (Settings → Secrets and variables → Actions →
+Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.
 
 ## Licence and data
 

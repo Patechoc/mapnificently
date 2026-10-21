@@ -77,6 +77,42 @@ def _ride_stops(timetable: Timetable, trip: int, first: int, last: int) -> list[
     return [*stops, int(timetable.arr_stop[last])]
 
 
+def _rides_to(result: ScanResult, timetable: Timetable, stop: int) -> int:
+    """Vehicles used to be ready to board at ``stop`` (following the scan's records)."""
+    rides = 0
+    while (conn := result.ready_conn[stop]) != NONE and rides < 50:  # safety net against loops
+        rides += 1
+        stop = int(timetable.dep_stop[result.board_conn[int(timetable.trip[conn])]])
+    return rides
+
+
+def _best_boarding(
+    result: ScanResult, timetable: Timetable, trip: int, first: int, last: int
+) -> int:
+    """Where to board ``trip`` for a ride ending at connection ``last``.
+
+    The scan records the first stop where the vehicle could be boarded. Any later stop of the
+    ride that we reach in time gives the same arrival; pick the one reached with the fewest
+    vehicles, then the latest (e.g. walk to Jernbanetorget and wait for metro 5, rather than
+    ride metro 3 one stop to meet it at Grønland). Stops reached on this same vehicle are
+    skipped.
+    """
+    best, best_key = first, (_rides_to(result, timetable, int(timetable.dep_stop[first])), -first)
+    for i in range(first + 1, last + 1):
+        if int(timetable.trip[i]) != trip or not timetable.board[i]:
+            continue
+        stop = int(timetable.dep_stop[i])
+        via = result.ready_conn[stop]
+        if result.ready[stop] > int(timetable.dep_s[i]) or (
+            via != NONE and int(timetable.trip[via]) == trip
+        ):
+            continue
+        key = (_rides_to(result, timetable, stop), -i)
+        if key < best_key:
+            best, best_key = i, key
+    return best
+
+
 def legs_to_stop(
     result: ScanResult,
     network: StopNetwork,
@@ -110,7 +146,7 @@ def legs_to_stop(
                 )
             )  # fmt: skip
         trip = int(timetable.trip[conn])
-        boarded = result.board_conn[trip]
+        boarded = _best_boarding(result, timetable, trip, result.board_conn[trip], conn)
         board_stop = int(timetable.dep_stop[boarded])
         legs.append(
             Leg(

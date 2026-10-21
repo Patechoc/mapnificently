@@ -5,6 +5,8 @@
 // here as walking circles around those stops, so moving the slider needs no new request.
 // In "route" click mode, a click sets a destination and the panel shows, for every start
 // point, the fastest journey there: each walk, wait and ride.
+// In the static export (offline.js loaded) the same /api/... requests are answered in the
+// browser from exported files, and a service worker keeps the app usable offline.
 
 const FALLBACK_MAX_MINUTES = 180; // used if the server has no /api/config
 const MAX_ORIGINS = 10;
@@ -13,6 +15,7 @@ const COLORS = ["#1f6feb", "#d6336c", "#2f9e44", "#f08c00", "#7048e8",
                 "#0c8599", "#e8590c", "#5c940d", "#ae3ec9", "#495057"];
 
 const $ = (id) => document.getElementById(id);
+const OFFLINE = window.mapnificentlyOffline || null;
 
 const state = {
   cities: [],
@@ -33,6 +36,7 @@ const state = {
 async function api(path, options = {}) {
   const init = { headers: { "Content-Type": "application/json" }, ...options };
   if (init.body && typeof init.body !== "string") init.body = JSON.stringify(init.body);
+  if (OFFLINE) return OFFLINE.handle(path, init);
   const response = await fetch(path, init);
   let payload = null;
   try { payload = await response.json(); } catch { /* empty body */ }
@@ -92,6 +96,7 @@ const map = L.map("map", { zoomControl: false, preferCanvas: true }).setView([59
 L.control.zoom({ position: "topright" }).addTo(map);
 L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
   maxZoom: 19,
+  crossOrigin: true, // lets the offline export's service worker keep viewed tiles
   attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
 }).addTo(map);
 
@@ -475,9 +480,20 @@ async function computeRoute() {
   renderRoute();
 }
 
+function insideCity(lat, lon) {
+  const b = state.city.bbox;
+  return lat >= b.lat_min && lat <= b.lat_max && lon >= b.lon_min && lon <= b.lon_max;
+}
+
 function routeSummary(result, origins) {
   const reachable = result.journeys.filter((j) => j.reachable);
-  if (!reachable.length) return `Not reachable within ${state.maxMinutes} min.`;
+  if (!reachable.length) {
+    if (!insideCity(state.destination.lat, state.destination.lon)) {
+      return `This place is outside the ${state.city.name} area, so ${state.city.name}'s timetables cannot reach it. `
+        + "Try another city, or add the operators that serve it to this city (see the README).";
+    }
+    return `Not reachable within ${state.maxMinutes} min.`;
+  }
   if (origins.length === 1) {
     const j = reachable[0];
     return `${fmtMinutes(j.duration_s)}, ${j.num_changes} change${j.num_changes === 1 ? "" : "s"}, arrive ${hhmm(j.arrive)}.`;
@@ -621,6 +637,16 @@ function renderRoute() {
 
 // ---------------------------------------------------------------- cities
 
+// The offline export only has the exported days; keep the date picker inside them.
+function limitDates(dates) {
+  $("date").min = dates[0];
+  $("date").max = dates[dates.length - 1];
+  if (!dates.includes($("date").value)) {
+    const today = new Date().toISOString().slice(0, 10);
+    $("date").value = dates.find((d) => d >= today) || dates[dates.length - 1];
+  }
+}
+
 async function selectCity(id, { fitView = true } = {}) {
   const city = state.cities.find((c) => c.id === id) || state.cities[0];
   if (!city) return;
@@ -628,6 +654,7 @@ async function selectCity(id, { fitView = true } = {}) {
   state.stops = null;
   $("city").value = city.id;
   $("attribution").textContent = city.attribution;
+  if (city.dates) limitDates(city.dates);
   clearOrigins();
   clearDestination();
   stopLayer.clearLayers();
@@ -780,6 +807,12 @@ try { if (localStorage.getItem("panelCollapsed") === "1") setCollapsed(true); } 
 
 async function init() {
   const hash = readHash();
+  if (OFFLINE) {
+    $("api-docs").hidden = true;
+    if ("serviceWorker" in navigator) {
+      navigator.serviceWorker.register("sw.js").catch((err) => console.warn("offline cache unavailable:", err));
+    }
+  }
   try {
     state.maxMinutes = (await api("/api/config")).max_minutes;
   } catch { /* older server: keep the fallback */ }

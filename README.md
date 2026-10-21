@@ -185,6 +185,37 @@ There are two ways to register a provider:
 If a source has no GTFS, for example a REST API, its provider converts the data to GTFS files
 inside `fetch_feeds`, and the rest of the pipeline stays the same.
 
+## Offline use and static hosting (GitHub Pages)
+
+`make static` exports a copy of the web map that needs no server: routing runs in the browser
+(`web/offline.js`, a port of the Python router that gives identical results), on timetables
+exported for a fixed number of days.
+
+```bash
+make static CITIES="moss oslo" DAYS=7    # writes site/ (Moss ~5 MB, Oslo ~60 MB for 7 days)
+make static-serve                        # http://127.0.0.1:8080, like GitHub Pages would serve it
+```
+
+After the first visit, a service worker keeps the page working offline:
+
+| | Offline? |
+|---|---|
+| Page, Leaflet (bundled), reachable areas, routes | ✅ |
+| Search | ✅ by stop name, from the exported data (no address search) |
+| Timetables | ✅ for days you have already opened; only the exported days exist |
+| Map background | ✅ for areas you have already viewed (tiles are kept as you browse, never bulk-downloaded, per the OpenStreetMap tile policy) |
+
+To publish on GitHub Pages, put the contents of `site/` on the branch or folder Pages serves
+(e.g. a `gh-pages` branch), and export again regularly: the exported days move on.
+
+> Publishing makes AI-generated code and content public. Within Norwegian Red Cross, check
+> with AI-ansvarlig first (the AI rules on responsibility, review and openness about AI use
+> apply). The page states that the code was written with AI assistance, and the timetable
+> data is open (NLOD, attribution shown).
+
+The server version works offline too, except for address search (Entur/Photon online) and map
+tiles not yet viewed. Set `UV_OFFLINE=1` so `uv run`/`make` never try to download.
+
 ## Configuration
 
 Settings are read from environment variables or a `.env` file:
@@ -206,6 +237,9 @@ Settings are read from environment variables or a `.env` file:
   serves, because `shapes.txt` is not read.
 - **Approximate walking.** Distances are straight lines × 1.2, not routed along streets. Water and
   motorways are not taken into account.
+- **One area per city.** Each city only has its own operators and area: Moss cannot reach
+  Oslo's metro (Ruter is not in Moss's feeds, and the area ends at 59.95 N). The app says so when
+  a destination is outside the city's area.
 - **Shared tile server.** The web map uses the public OpenStreetMap tiles. Before publishing
   widely, switch to a tile provider that allows that traffic.
 

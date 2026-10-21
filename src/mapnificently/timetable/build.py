@@ -68,7 +68,7 @@ class StopNetwork:
         """Stops within ``radius_m`` (straight line) of a point, with their distances."""
         x, y = self.projection.forward(lat, lon)
         point = np.array([float(x), float(y)])
-        idx = np.asarray(self.tree.query_ball_point(point, radius_m), dtype=np.int32)
+        idx = np.sort(np.asarray(self.tree.query_ball_point(point, radius_m), dtype=np.int32))
         if idx.size == 0:
             return idx, np.zeros(0)
         dist = np.hypot(self.xy[idx, 0] - point[0], self.xy[idx, 1] - point[1])

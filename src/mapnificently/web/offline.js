@@ -252,6 +252,32 @@
     return stops;
   }
 
+  // Port of journey._rides_to / _best_boarding: board where we arrive in time with the fewest
+  // vehicles, then as late as possible (same arrival). Stops reached on this vehicle are skipped.
+  function ridesTo(result, tt, stop) {
+    let rides = 0;
+    let conn;
+    while ((conn = result.readyConn[stop]) !== NONE && rides < 50) {
+      rides += 1;
+      stop = tt.dep_stop[result.boardConn[tt.trip[conn]]];
+    }
+    return rides;
+  }
+
+  function bestBoarding(result, tt, trip, first, last) {
+    let best = first;
+    let bestRides = ridesTo(result, tt, tt.dep_stop[first]);
+    for (let i = first + 1; i <= last; i++) {
+      if (tt.trip[i] !== trip || !(tt.flags[i] & BOARD)) continue;
+      const stop = tt.dep_stop[i];
+      const via = result.readyConn[stop];
+      if (result.ready[stop] > tt.dep_s[i] || (via !== NONE && tt.trip[via] === trip)) continue;
+      const rides = ridesTo(result, tt, stop);
+      if (rides <= bestRides) { best = i; bestRides = rides; }  // ties: the later stop
+    }
+    return best;
+  }
+
   function legsToStop(result, net, tt, origin, stop, speed, detour) {
     const secondsPerM = detour / speed;
     const legs = [];
@@ -270,7 +296,7 @@
         legs.push({ kind: "walk", from: walkFrom, to: stop, depart: gotOff, arrive: gotOff + Math.trunc(d * secondsPerM), distance: d * detour });
       }
       const trip = tt.trip[conn];
-      const boarded = result.boardConn[trip];
+      const boarded = bestBoarding(result, tt, trip, result.boardConn[trip], conn);
       const boardStop = tt.dep_stop[boarded];
       legs.push({ kind: "ride", from: boardStop, to: tt.arr_stop[conn], depart: tt.dep_s[boarded], arrive: tt.arr_s[conn],
         trip, path: rideStops(tt, trip, boarded, conn) });

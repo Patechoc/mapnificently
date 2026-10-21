@@ -9,8 +9,9 @@ import pytest
 from mapnificently import engine
 from mapnificently.models import CityConfig, LatLon, ReachRequest, RouteRequest
 from mapnificently.routing import route_mode
+from mapnificently.settings import Settings
 from mapnificently.timetable import CityDataStore, load_trip_info
-from tests.conftest import COORDS
+from tests.conftest import COORDS, write_gtfs
 
 
 def at(stop: str) -> LatLon:
@@ -147,3 +148,33 @@ def test_trip_info_from_older_prepared_data(tmp_path: Path):
     info = load_trip_info(tmp_path)
     assert info.line == ["1_20"]
     assert info.headsign == [None]
+
+
+def test_boards_where_fewest_vehicles_are_needed(tmp_path: Path):
+    """From R, vehicle Y (Q → R → S) can be caught at R directly; the scan first meets it at Q
+    (reached by riding X back one stop). The journey should be Y alone, not X then Y."""
+    feed = write_gtfs(tmp_path / "line.zip", {
+        "agency.txt": "agency_id,agency_name,agency_url,agency_timezone\n"
+        "X,T,https://example.org,Europe/Oslo\n",
+        "stops.txt": "stop_id,stop_name,stop_lat,stop_lon\n"
+        "Q,Stop Q,59.91,10.73\nR,Stop R,59.91,10.75\nS,Stop S,59.91,10.79\n",
+        "routes.txt": "route_id,route_short_name,route_type\nLX,X,3\nLY,Y,3\n",
+        "trips.txt": "route_id,service_id,trip_id\nLX,ALL,X1\nLY,ALL,Y1\n",
+        "stop_times.txt": "trip_id,arrival_time,departure_time,stop_id,stop_sequence\n"
+        "X1,08:01:00,08:01:00,R,1\nX1,08:03:00,08:03:00,Q,2\n"
+        "Y1,08:05:00,08:05:00,Q,1\nY1,08:10:00,08:10:00,R,2\nY1,08:20:00,08:20:00,S,3\n",
+        "calendar_dates.txt": "service_id,date,exception_type\nALL,20261022,1\n",
+    })  # fmt: skip
+    city = CityConfig(
+        id="line", name="Line", timezone="Europe/Oslo", center=[59.91, 10.75],
+        bbox=[10.70, 59.89, 10.80, 59.95], provider="gtfs", feeds=[str(feed)],
+    )  # fmt: skip
+    store = CityDataStore(Settings(data_dir=tmp_path / "data"), {"line": city})
+    store.refresh("line")
+    response = route(store, city, [LatLon(lat=59.91, lon=10.75)], LatLon(lat=59.91, lon=10.79),
+                     min_change_min=0)  # fmt: skip
+    [journey] = response.journeys
+    rides = [(leg.line, leg.from_name, leg.to_name) for leg in journey.legs if leg.mode != "walk"]
+    assert rides == [("Y", "Stop R", "Stop S")]
+    assert journey.num_changes == 0
+    assert journey.duration_s == 20 * 60  # the same arrival as riding X then Y

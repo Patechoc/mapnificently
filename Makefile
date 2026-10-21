@@ -157,6 +157,21 @@ openapi: ## Write the OpenAPI schema to openapi.json
 	print(json.dumps(create_app().openapi(), indent=2))" > openapi.json
 	@echo "wrote openapi.json"
 
+##@ Static site (offline, e.g. GitHub Pages)
+
+SITE   ?= site
+DAYS   ?= 7
+CITIES ?= $(CITY)
+SITE_PORT ?= 8080
+
+.PHONY: static
+static: ## Export CITIES (default CITY) for DAYS days into SITE, routing in the browser
+	$(APP) export-static $(CITIES) --days $(DAYS) -o $(SITE)
+
+.PHONY: static-serve
+static-serve: ## Serve the exported SITE locally on SITE_PORT, like GitHub Pages would
+	$(RUN) python -m http.server $(SITE_PORT) --bind $(HOST) --directory $(SITE)
+
 ##@ Queries (need a running server: `make serve` in another terminal)
 
 .PHONY: cities

@@ -6,7 +6,7 @@
 
 import json
 import re
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -210,6 +210,65 @@ def data_status() -> None:
             rows.append([city_id, "missing", "-", "-", "-"])
     _table(rows, ["city", "data", "stops", "service dates", "prepared (UTC)"])
     click.echo(f"\ndata dir: {settings.data_dir}")
+
+
+@cli.command("export-static")
+@click.argument("cities", nargs=-1)
+@click.option("--all", "export_all", is_flag=True, help="Every city with data.")
+@click.option(
+    "--start",
+    type=click.DateTime(["%Y-%m-%d"]),
+    help="First service date to include. Default: today.",
+)
+@click.option("--days", type=click.IntRange(1, 60), default=7, show_default=True)
+@click.option(
+    "-o",
+    "--output",
+    type=click.Path(file_okay=False, path_type=Path),
+    default=Path("site"),
+    show_default=True,
+    help="Directory to write (replaced if it exists).",
+)
+def export_static(
+    cities: tuple[str, ...],
+    export_all: bool,
+    start: datetime | None,
+    days: int,
+    output: Path,
+) -> None:
+    """Write a static, offline-capable copy of the web map (e.g. for GitHub Pages).
+
+    Routing then runs in the browser on the exported timetables, which only cover --days days
+    from --start: export again to move the window.
+    """
+    from mapnificently.providers import load_cities  # noqa: PLC0415
+    from mapnificently.static_site import export_static_site  # noqa: PLC0415
+    from mapnificently.timetable import CityDataStore  # noqa: PLC0415
+
+    settings = get_settings()
+    store = CityDataStore(settings, load_cities(settings))
+    ready = [c for c in store.cities if store.is_ready(c)]
+    selected = ready if export_all else list(cities)
+    if not selected:
+        msg = f"name a city or use --all (with data: {', '.join(ready) or 'none'})"
+        raise click.UsageError(msg)
+    missing = [c for c in selected if c not in ready]
+    if missing:
+        msg = f"no data for {', '.join(missing)}: run `mapnificently data fetch` first"
+        raise click.UsageError(msg)
+
+    first = start.date() if start else date.today()  # noqa: DTZ011
+    dates = [first + timedelta(days=i) for i in range(days)]
+    try:
+        summary = export_static_site(store, selected, dates, output)
+    except FileExistsError as exc:
+        raise click.ClickException(str(exc)) from exc
+    for city_id, sizes in summary["cities"].items():
+        empty = [name for name, size in sizes.items() if name.startswith("tt-") and size < 1024]
+        click.echo(f"{city_id}: {len(sizes) - 1} days, {sum(sizes.values()) / 1e6:.1f} MB")
+        if empty:
+            click.echo(f"  warning: no trips on {', '.join(empty)} (outside the feed's dates?)")
+    click.echo(f"wrote {output}/ ({summary['total_bytes'] / 1e6:.1f} MB)")
 
 
 @cli.command()

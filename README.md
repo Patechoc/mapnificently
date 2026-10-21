@@ -116,9 +116,12 @@ gcloud billing projects describe PROJECT_ID   # must show: billingEnabled: true
 gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
 ```
 
-Then run the button again, or paste in Cloud Shell what the button runs:
+Then run the button again, or paste in Cloud Shell what the button runs. Do it from an empty
+folder: a clone left by an earlier attempt makes it fail with `fatal: destination path
+'mapnificently' already exists`.
 
 ```bash
+mkdir -p ~/deploy-$(date +%s) && cd "$_"
 cloudshell_open --repo_url "https://github.com/Patechoc/mapnificently.git" --page "shell" --force_new_clone
 ```
 
@@ -134,13 +137,57 @@ gcloud run deploy mapnificently --source . --region europe-north1 \
 `europe-north1` (Finland) is the region closest to Norway; gcloud prints the app's address at
 the end.
 
-**When you are done**, remove the service and its images so nothing keeps costing (a budget
-alert under Billing → Budgets & alerts is a good safety net while it runs):
+### After deploying: how long it runs, what it costs, removing it
+
+**It stays deployed until you delete it**; a Cloud Run service does not expire. When nobody
+uses it, it scales to zero and uses no compute; the next visitor wakes it in about a second.
+The timetables in it do expire, at the feeds' end dates (`make data-status` shows them): after
+that it still runs but finds no trips until you deploy again.
+
+**What it costs:**
+
+- **Idle:** nothing for compute.
+- **Light use:** within Cloud Run's free monthly allowances (2 million requests, 180,000
+  vCPU-seconds, 360,000 GiB-seconds per billing account).
+- **Storage:** a few cents a month at most. The built image (about 200 MB) is kept in
+  Artifact Registry, where 0.5 GiB is free; each deployment adds one. A deployment with
+  `--source` also keeps a small copy of the source in a Cloud Storage bucket.
+- **The real risk is traffic**, since the address is public. `app.json` and the commands
+  above cap it at 2 instances; a **budget alert** (Billing → Budgets & alerts, e.g. $5) tells
+  you if usage ever grows.
+
+**Your options** (in Cloud Shell; replace `europe-north1` if you deployed elsewhere):
+
+| Option | When | What to do |
+|---|---|---|
+| Keep it public | an occasional demo | nothing; set a budget alert |
+| Keep it, but private | only people with access to your project should open it | remove public access (below) |
+| Remove it | no longer needed: no costs at all | delete the service, its images and the source copies (below) |
+
+Make it private (only signed-in users with access to the project can open it); add the
+binding back with `add-iam-policy-binding` and the same flags to make it public again:
 
 ```bash
-gcloud run services delete mapnificently --region europe-north1
-gcloud artifacts repositories list   # then delete the repository holding the images
+gcloud run services remove-iam-policy-binding mapnificently --region europe-north1 \
+  --member=allUsers --role=roles/run.invoker
 ```
+
+Remove it completely:
+
+```bash
+# 1. The service (the app itself and its address)
+gcloud run services delete mapnificently --region europe-north1
+
+# 2. The stored images: find the repository, then delete it
+gcloud artifacts repositories list
+gcloud artifacts repositories delete cloud-run-source-deploy --location europe-north1   # `--source` deployments
+
+# 3. The source copies kept by `--source` deployments (bucket named run-sources-…)
+gcloud storage buckets list --format="value(name)" | grep run-sources
+gcloud storage rm --recursive gs://BUCKET_NAME
+```
+
+Deleting the whole Google Cloud project removes all of it at once.
 
 ### Test the container locally
 

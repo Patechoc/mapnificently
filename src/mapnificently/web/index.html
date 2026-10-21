@@ -13,14 +13,16 @@
   <aside id="panel">
     <header>
       <h1>Mapnificently</h1>
-      <button id="collapse" type="button" aria-label="Collapse panel" title="Collapse panel">–</button>
+      <button id="collapse" type="button" aria-label="Hide settings" title="Hide settings"
+              aria-expanded="true" aria-controls="panel-body">–</button>
     </header>
-    <div id="panel-body">
+    <div id="panel-time">
       <p class="lead">Where can you get by public transport in
         <strong><span id="minutes-label">30</span> minutes</strong>?</p>
       <input id="minutes" class="time-slider" type="range" min="1" max="220" step="1" value="30"
              aria-label="Travel time in minutes">
-
+    </div>
+    <div id="panel-body">
       <label class="field">City
         <select id="city"></select>
       </label>

@@ -384,11 +384,54 @@
     };
   }
 
-  // Offline place search: stop names (grouped, so a station with many platforms appears once).
-  async function geocode(cityId, query, limit) {
+  // Place search. Online: the region's geocoder, called from the browser exactly like the
+  // server does (Entur for Norway, Photon otherwise; both allow cross-site requests).
+  // Offline, or if that fails: stop names from the exported data.
+  const ONLINE_SEARCH_TIMEOUT_MS = 4000;
+
+  async function onlineGeocode(info, query, limit) {
+    const m = await manifest();
+    const b = info.bbox;
+    const abort = new AbortController();
+    const timer = setTimeout(() => abort.abort(), ONLINE_SEARCH_TIMEOUT_MS);
+    try {
+      if (info.provider === "entur") {
+        const params = new URLSearchParams({
+          text: query, size: String(limit), lang: "no",
+          "boundary.rect.min_lat": b.lat_min, "boundary.rect.max_lat": b.lat_max,
+          "boundary.rect.min_lon": b.lon_min, "boundary.rect.max_lon": b.lon_max,
+        });
+        const r = await fetch(`https://api.entur.io/geocoder/v1/autocomplete?${params}`, {
+          headers: { "ET-Client-Name": m.entur_client_name || "mapnificently-static" },
+          signal: abort.signal,
+        });
+        if (!r.ok) throw new Error(`geocoder ${r.status}`);
+        return (await r.json()).features.map((f) => {
+          const p = f.properties;
+          const [lon, lat] = f.geometry.coordinates;
+          return { name: p.name, label: p.label || p.name, lat, lon, kind: p.layer || "" };
+        });
+      }
+      const params = new URLSearchParams({
+        q: query, limit: String(limit), bbox: [b.lon_min, b.lat_min, b.lon_max, b.lat_max].join(","),
+      });
+      const r = await fetch(`https://photon.komoot.io/api/?${params}`, { signal: abort.signal });
+      if (!r.ok) throw new Error(`geocoder ${r.status}`);
+      return (await r.json()).features.map((f) => {
+        const p = f.properties;
+        const [lon, lat] = f.geometry.coordinates;
+        const name = p.name || p.street || query;
+        return { name, label: [name, p.city].filter(Boolean).join(", "), lat, lon, kind: p.osm_value || "" };
+      });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
+  // Stop names, grouped so a station with many platforms appears once.
+  async function stopSearch(cityId, query, limit) {
     const net = await network(cityId);
     const q = query.trim().toLocaleLowerCase("nb");
-    if (q.length < 2) throw new HttpError(422, "search needs at least 2 characters");
     const groups = new Map();
     for (let i = 0; i < net.n; i++) {
       const lower = net.names[i].toLocaleLowerCase("nb");
@@ -402,6 +445,19 @@
       .sort((a, b) => a.rank - b.rank || a.name.length - b.name.length || a.name.localeCompare(b.name, "nb"))
       .slice(0, limit)
       .map((g) => ({ name: g.name, label: g.name, lat: g.lat / g.count, lon: g.lon / g.count, kind: "stop" }));
+  }
+
+  async function geocode(cityId, query, limit) {
+    if (query.trim().length < 2) throw new HttpError(422, "search needs at least 2 characters");
+    if (navigator.onLine !== false) {
+      try {
+        const hits = await onlineGeocode(await city(cityId), query, limit);
+        if (hits.length) return hits;
+      } catch (err) {
+        console.info("address search unavailable, searching stop names instead:", err.message);
+      }
+    }
+    return stopSearch(cityId, query, limit);
   }
 
   async function stops(cityId) {

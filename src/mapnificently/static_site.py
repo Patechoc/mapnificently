@@ -174,6 +174,9 @@ def export_static_site(
         "version": __version__,
         "max_minutes": MAX_MINUTES,
         "walk_detour": WALK_DETOUR,
+        # Sent to Entur when the page searches addresses online (Entur asks clients to say who
+        # they are). Set MAPNIFICENTLY_ENTUR_CLIENT_NAME before exporting.
+        "entur_client_name": store.settings.entur_client_name,
         "cities": cities,
     }
     (out / "data" / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1))

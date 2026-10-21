@@ -123,8 +123,8 @@ data-refresh: ## Re-download CITY's feeds even if unchanged, then rebuild
 	$(APP) data fetch --force $(CITY)
 
 .PHONY: data-status
-data-status: ## Show which cities have data and the dates it covers
-	$(APP) data status
+data-status: ## Show which cities have data, its dates and disk size (PATHS=1: where it is stored)
+	$(APP) data status $(if $(PATHS),--paths)
 
 .PHONY: data-clean
 data-clean: ## Delete CITY's downloaded and prepared data (CITY must be given)

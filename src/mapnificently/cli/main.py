@@ -185,16 +185,40 @@ def data_fetch(cities: tuple[str, ...], fetch_all: bool, force: bool) -> None:
         )
 
 
+def _disk_size(path: Path) -> int:
+    """Bytes used by the files under ``path`` (0 if it does not exist)."""
+    if not path.exists():
+        return 0
+    return sum(f.stat().st_size for f in path.rglob("*") if f.is_file())
+
+
+def _human(size: int) -> str:
+    """Bytes as B, KB, MB or GB (decimal units)."""
+    if size < 1000:
+        return f"{size} B"
+    value = size / 1000
+    for unit in ("KB", "MB"):
+        if value < 1000:
+            return f"{value:.1f} {unit}"
+        value /= 1000
+    return f"{value:.1f} GB"
+
+
 @data.command("status")
-def data_status() -> None:
-    """Show which cities have data."""
+@click.option("--paths", is_flag=True, help="Also show where each city's files are stored.")
+def data_status(paths: bool) -> None:
+    """Show which cities have data, and the disk space it takes."""
     from mapnificently.providers import load_cities  # noqa: PLC0415
-    from mapnificently.timetable import CityDataStore  # noqa: PLC0415
+    from mapnificently.timetable import CityDataStore, cached_dates  # noqa: PLC0415
 
     settings = get_settings()
     store = CityDataStore(settings, load_cities(settings))
     rows = []
+    total = 0
     for city_id in store.cities:
+        size = _disk_size(settings.city_dir(city_id))
+        total += size
+        shown = _human(size) if size else "-"
         if store.is_ready(city_id):
             meta = store.meta(city_id)
             rows.append(
@@ -204,12 +228,50 @@ def data_status() -> None:
                     str(meta["num_stops"]),
                     f"{meta['service_start']} → {meta['service_end']}",
                     meta["prepared_at"][:16],
+                    shown,
                 ]
             )
         else:
-            rows.append([city_id, "missing", "-", "-", "-"])
-    _table(rows, ["city", "data", "stops", "service dates", "prepared (UTC)"])
-    click.echo(f"\ndata dir: {settings.data_dir}")
+            rows.append([city_id, "missing", "-", "-", "-", shown])
+
+    # Folders in the data directory that no configured city uses (left over, safe to delete).
+    data_dir = settings.data_dir
+    others = (
+        sorted(p for p in data_dir.iterdir() if p.is_dir() and p.name not in store.cities)
+        if data_dir.is_dir()
+        else []
+    )
+    for other in others:
+        size = _disk_size(other)
+        total += size
+        rows.append([other.name, "unused", "-", "-", "-", _human(size)])
+
+    rows.append(["total", "", "", "", "", _human(total)])
+    _table(rows, ["city", "data", "stops", "service dates", "prepared (UTC)", "size"])
+    click.echo(f"\ndata dir: {data_dir}")
+    if not paths:
+        click.echo("(use --paths to see where each city's files are stored)")
+        return
+
+    click.echo("\nWhere the data is stored:")
+    for city_id in [*store.cities, *(o.name for o in others)]:
+        city_dir = data_dir / city_id
+        if not city_dir.exists():
+            click.echo(f"\n{city_id}: nothing downloaded yet")
+            continue
+        click.echo(f"\n{city_id}: {city_dir}  ({_human(_disk_size(city_dir))})")
+        feeds = store.feeds_dir(city_id)
+        if feeds.is_dir():
+            zips = sorted(f.name for f in feeds.glob("*.zip"))
+            click.echo(
+                f"  downloaded feeds  {feeds}  {_human(_disk_size(feeds))}  ({', '.join(zips)})"
+            )
+        prepared = store.prepared_dir(city_id)
+        if prepared.is_dir():
+            days = cached_dates(prepared)
+            cached = f"{len(days)} day{'s' if len(days) != 1 else ''} of timetables cached"
+            used = _human(_disk_size(prepared))
+            click.echo(f"  prepared data     {prepared}  {used}  ({cached})")
 
 
 @cli.command("export-static")

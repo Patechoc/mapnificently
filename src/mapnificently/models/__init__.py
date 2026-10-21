@@ -1,27 +1,31 @@
 """Pydantic models for Mapnificently."""
 
-from mapnificently.models.gtfs import (
-    Agency,
-    Calendar,
-    CalendarDate,
-    Route,
-    Stop,
-    StopTime,
-    Transfer,
-    Trip,
+from mapnificently.models.api import (
+    CityInfo,
+    CityStatus,
+    FeedStatus,
+    IsochroneRequest,
+    OriginReach,
+    Place,
+    ReachRequest,
+    ReachResponse,
+    StopsResponse,
+    TripRequest,
 )
-from mapnificently.models.isochrone import IsochroneConfig, IsochroneResult, ReachableStop
+from mapnificently.models.city import BBox, CityConfig, LatLon
 
 __all__ = [
-    "Agency",
-    "Calendar",
-    "CalendarDate",
-    "IsochroneConfig",
-    "IsochroneResult",
-    "ReachableStop",
-    "Route",
-    "Stop",
-    "StopTime",
-    "Transfer",
-    "Trip",
+    "BBox",
+    "CityConfig",
+    "CityInfo",
+    "CityStatus",
+    "FeedStatus",
+    "IsochroneRequest",
+    "LatLon",
+    "OriginReach",
+    "Place",
+    "ReachRequest",
+    "ReachResponse",
+    "StopsResponse",
+    "TripRequest",
 ]

@@ -1,1 +1,1 @@
-"""Test suite for Mapnificently."""
+"""Tests."""

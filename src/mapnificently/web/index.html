@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mapnificently</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div id="map"></div>
+
+  <aside id="panel">
+    <header>
+      <h1>Mapnificently</h1>
+      <button id="collapse" type="button" aria-label="Collapse panel" title="Collapse panel">–</button>
+    </header>
+    <div id="panel-body">
+      <p class="lead">Where can you get by public transport in
+        <strong><span id="minutes-label">30</span> minutes</strong>?</p>
+
+      <label class="field">City
+        <select id="city"></select>
+      </label>
+
+      <div class="field search">
+        <label for="search">Add a start point</label>
+        <input id="search" type="search" placeholder="Search an address or stop, or click the map" autocomplete="off">
+        <ul id="search-results" hidden></ul>
+      </div>
+
+      <label class="field">Travel time
+        <input id="minutes" type="range" min="1" max="120" step="1" value="30">
+      </label>
+
+      <div class="row">
+        <label class="field">Date <input id="date" type="date"></label>
+        <label class="field">Departure <input id="time" type="time" step="300"></label>
+      </div>
+
+      <div class="row">
+        <label class="field">Walking
+          <select id="walk">
+            <option value="1.0">Slow (3.6 km/h)</option>
+            <option value="1.25" selected>Normal (4.5 km/h)</option>
+            <option value="1.6">Fast (5.8 km/h)</option>
+          </select>
+        </label>
+        <label class="field">Max walk
+          <select id="maxwalk">
+            <option value="500">500 m</option>
+            <option value="1000" selected>1 km</option>
+            <option value="2000">2 km</option>
+          </select>
+        </label>
+      </div>
+
+      <fieldset class="field" id="mode-field">
+        <legend>With several start points, show</legend>
+        <label><input type="radio" name="mode" value="union" checked> where anyone can get</label>
+        <label><input type="radio" name="mode" value="intersection"> where everyone can get</label>
+      </fieldset>
+
+      <label class="check"><input id="show-stops" type="checkbox"> Show reached stops</label>
+
+      <ol id="origins"></ol>
+      <p id="status" role="status"></p>
+    </div>
+    <footer>
+      <span id="attribution"></span>
+      <span>Inspired by <a href="https://www.mapnificent.net/" target="_blank" rel="noopener">Mapnificent</a>.
+        Code written with AI assistance.</span>
+      <a href="/docs" target="_blank" rel="noopener">API docs</a>
+    </footer>
+  </aside>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>

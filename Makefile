@@ -47,7 +47,11 @@ help: ## Show this help
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage: make \033[36m<target>\033[0m [VAR=value ...]\n"} \
 		/^[a-zA-Z0-9_-]+:.*?##/ { printf "  \033[36m%-18s\033[0m %s\n", $$1, $$2 } \
 		/^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) }' $(MAKEFILE_LIST)
-	@printf "\nVariables: CITY=$(CITY) FROM=\"$(FROM)\" TO=\"$(TO)\" AT=$(AT) MINUTES=$(MINUTES) MODE=$(MODE) CHANGE=$(CHANGE) PORT=$(PORT)\n\n"
+	@printf "\n\033[1mVariables\033[0m (now)\n"
+	@printf "  CITY=%-14s a city, or a region, e.g. CITY=moss  (names: make data-status)\n" "$(CITY)"
+	@printf "  CITIES=%-12s several cities, for static: CITIES=\"oslo moss\"\n" "$(CITIES)"
+	@printf "  FROM, TO            \"lat,lon\" or a place name; several starts: FROM=\"A;B\"\n"
+	@printf "  AT=%s MINUTES=%s MODE=%s CHANGE=%s PORT=%s\n\n" "$(AT)" "$(MINUTES)" "$(MODE)" "$(CHANGE)" "$(PORT)"
 
 ##@ Setup
 
@@ -110,7 +114,7 @@ coverage: ## Run unit tests with a coverage report (HTML in htmlcov/)
 ##@ Data
 
 .PHONY: data-fetch
-data-fetch: ## Download and prepare the region of CITY (a city or region name)
+data-fetch: ## Download and prepare CITY's region (e.g. CITY=moss)
 	$(APP) data fetch $(CITY)
 
 .PHONY: data-fetch-all
@@ -118,21 +122,21 @@ data-fetch-all: ## Download and prepare every configured region
 	$(APP) data fetch --all
 
 .PHONY: data-refresh
-data-refresh: ## Re-download the feeds of CITY's region even if unchanged, then rebuild
+data-refresh: ## Re-download CITY's region even if unchanged (e.g. CITY=bergen)
 	$(APP) data fetch --force $(CITY)
 
 .PHONY: data-status
-data-status: ## Show which regions have data, its dates and disk size (PATHS=1: where it is stored)
+data-status: ## Regions, their cities, dates and disk use (PATHS=1: where files are)
 	$(APP) data status $(if $(PATHS),--paths)
 
 .PHONY: data-clean
-data-clean: ## Delete the data of CITY's region, and feeds only it uses (CITY must be given; asks first)
+data-clean: ## Delete CITY's region and feeds only it uses; asks (CITY=… required)
 	@if [ "$(origin CITY)" = "file" ] || [ -z "$(strip $(CITY))" ]; then \
 		echo "usage: make data-clean CITY=<city or region>"; exit 2; fi
 	$(APP) data remove $(CITY)
 
 .PHONY: data-prune
-data-prune: ## Delete data no region uses (old layouts, removed regions, unused feeds; asks first)
+data-prune: ## Delete data no region uses (old layouts, unused feeds); asks first
 	$(APP) data prune
 
 ##@ Run
@@ -167,11 +171,11 @@ CITIES ?= $(CITY)
 SITE_PORT ?= 8080
 
 .PHONY: static
-static: ## Export CITIES (default CITY) for DAYS days into SITE, routing in the browser
+static: ## Export CITIES for DAYS days into SITE (e.g. CITIES="oslo moss" DAYS=3)
 	$(APP) export-static $(CITIES) --days $(DAYS) -o $(SITE)
 
 .PHONY: static-serve
-static-serve: ## Serve the exported SITE locally on SITE_PORT, like GitHub Pages would
+static-serve: ## Serve SITE on SITE_PORT, like GitHub Pages would
 	$(RUN) python -m http.server $(SITE_PORT) --bind $(HOST) --directory $(SITE)
 
 ##@ Queries (need a running server: `make serve` in another terminal)
@@ -181,21 +185,21 @@ cities: ## List cities known to the API
 	$(APP) cities
 
 .PHONY: geocode
-geocode: ## Search places in CITY (Q="text", defaults to FROM)
+geocode: ## Search places in CITY (e.g. CITY=moss Q="Moss stasjon")
 	$(APP) geocode $(CITY) "$(Q)"
 
 .PHONY: reach
-reach: ## Stops reachable from FROM within MINUTES (TOP rows, AT optional)
+reach: ## Stops reachable from FROM in CITY within MINUTES (TOP rows shown)
 	@$(from_args); \
 	$(APP) reach $(CITY) "$${args[@]}" --minutes $(MINUTES) --top $(TOP) $(AT_ARG)
 
 .PHONY: route
-route: ## Fastest journey from FROM to TO, leg by leg (CHANGE = min. change minutes)
+route: ## Fastest journey FROM → TO in CITY, leg by leg (e.g. CITY=moss TO=Sognsvann)
 	@$(from_args); \
 	$(APP) route $(CITY) "$${args[@]}" --to "$(TO)" $(AT_ARG)
 
 .PHONY: isochrone
-isochrone: ## Reachable area from FROM as GeoJSON in OUT (MODE=union|intersection)
+isochrone: ## Area reachable from FROM in CITY, as GeoJSON in OUT (MODE=union|intersection)
 	@$(from_args); \
 	$(APP) isochrone $(CITY) "$${args[@]}" --minutes $(MINUTES) --mode $(MODE) $(AT_ARG) -o "$(OUT)"
 
@@ -206,6 +210,6 @@ build: ## Build the wheel and sdist into dist/
 	$(UV) build
 
 .PHONY: clean
-clean: ## Remove caches, coverage files and build output (keeps .venv and city data)
+clean: ## Remove caches, coverage files and build output (keeps .venv and timetable data)
 	rm -rf .pytest_cache .mypy_cache .ruff_cache htmlcov .coverage coverage.xml dist build
 	find . -path ./.venv -prune -o -type d -name __pycache__ -exec rm -rf {} +

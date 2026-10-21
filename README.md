@@ -44,13 +44,15 @@ make route CITY=moss FROM="Moss stasjon;Rygge stasjon" TO="Oslo S" CHANGE=3
 make check                        # lint, format check, mypy and tests
 ```
 
-Separate several start points in `FROM` with `;`. The Query targets need a server running, for
-example `make serve` in another terminal.
+Separate several start points in `FROM` with `;`. The query targets use a server started with
+`make serve` when one is running, and otherwise answer locally. (`make static-serve` serves
+only the static site, which has no API.)
 
 ## CLI
 
 `serve` and `data` run locally. The other commands call the API (`--api-url`, or
-`MAPNIFICENTLY_API_URL`, default `http://127.0.0.1:8000`). A `--from` can be `lat,lon` or a place
+`MAPNIFICENTLY_API_URL`, default `http://127.0.0.1:8000`); when no server answers there, they
+run the same app in-process on the local data and say so, so no server is needed. A `--from` can be `lat,lon` or a place
 name, which is looked up with the city's geocoder.
 
 ```bash

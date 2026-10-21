@@ -178,7 +178,7 @@ static: ## Export CITIES for DAYS days into SITE (e.g. CITIES="oslo moss" DAYS=3
 static-serve: ## Serve SITE on SITE_PORT, like GitHub Pages would
 	$(RUN) python -m http.server $(SITE_PORT) --bind $(HOST) --directory $(SITE)
 
-##@ Queries (need a running server: `make serve` in another terminal)
+##@ Queries (use `make serve` if it runs, otherwise answer locally)
 
 .PHONY: cities
 cities: ## List cities known to the API

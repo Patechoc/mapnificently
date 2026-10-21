@@ -20,6 +20,8 @@ from mapnificently.models import (
     Place,
     ReachRequest,
     ReachResponse,
+    RouteRequest,
+    RouteResponse,
     StopsResponse,
 )
 from mapnificently.models.api import MAX_MINUTES
@@ -143,6 +145,15 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
         The web map draws its circles from this, so moving the time slider needs no new request.
         """
         return engine.reach(store, city, body)
+
+    @app.post("/api/cities/{city_id}/route", tags=["routing"])
+    def route(city: CityDep, store: StoreDep, body: RouteRequest) -> RouteResponse:
+        """Fastest journey from each origin to the destination: every walk, wait and ride.
+
+        With several origins, ``fastest_s`` is the quickest journey and ``everyone_s`` the time
+        when the last one arrives (null if an origin cannot get there within ``max_minutes``).
+        """
+        return engine.route(store, city, body)
 
     @app.post("/api/cities/{city_id}/isochrone", tags=["routing"])
     def isochrone(city: CityDep, store: StoreDep, body: IsochroneRequest) -> dict[str, Any]:

@@ -135,3 +135,23 @@ def test_data_fetch_usage_errors(local_env: Path):
     unknown = runner.invoke(cli, ["data", "fetch", "atlantis"])
     assert unknown.exit_code == 2
     assert "unknown cities" in unknown.output
+
+
+def test_route(client: TestClient):
+    result = run(
+        client,
+        "route",
+        "testville",
+        "--from",
+        A,
+        "--from",
+        "59.913,10.78",
+        "--to",
+        "59.91,10.78",
+        "--at",
+        "2026-10-22T08:00",
+    )
+    assert result.exit_code == 0, result.output
+    assert "20 min, 0 changes, arrive 08:20" in result.output
+    assert "bus 1 towards Stop D: Stop A → Stop D (3 stops)" in result.output
+    assert "Fastest 5 min, everyone there after 20 min." in result.output

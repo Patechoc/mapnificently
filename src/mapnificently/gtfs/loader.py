@@ -4,7 +4,7 @@ Only what routing needs is kept (``shapes.txt`` is never read). The output lives
 ``prepared/`` directory:
 
 - ``stops.parquet``: stop_idx, stop_id, name, lat, lon (quays/platforms inside the bbox)
-- ``trips.parquet``: trip_idx, trip_id, route_id, service_id, route_type
+- ``trips.parquet``: trip_idx, trip_id, route_id, service_id, route_type, line, headsign
 - ``stop_times.parquet``: trip_idx, stop_idx, seq, arr_s, dep_s, board, alight
   (sorted by trip_idx, seq; times in seconds after service-day midnight, may exceed 86400)
 - ``calendar.parquet`` / ``calendar_dates.parquet``: service definitions
@@ -110,9 +110,18 @@ def _load_feed(feed: Feed) -> _FeedTables:
             ),
             "stops.txt",
         )
-        routes = _require(_read_table(zf, "routes.txt", ["route_id", "route_type"]), "routes.txt")
+        routes = _require(
+            _read_table(
+                zf,
+                "routes.txt",
+                ["route_id", "route_type"],
+                ["route_short_name", "route_long_name"],
+            ),
+            "routes.txt",
+        )
         trips = _require(
-            _read_table(zf, "trips.txt", ["route_id", "service_id", "trip_id"]), "trips.txt"
+            _read_table(zf, "trips.txt", ["route_id", "service_id", "trip_id"], ["trip_headsign"]),
+            "trips.txt",
         )
         stop_times = _require(
             _read_table(
@@ -151,10 +160,18 @@ def _load_feed(feed: Feed) -> _FeedTables:
         routes.select(
             pl.col("route_id"),
             pl.col("route_type").cast(pl.Int32, strict=False).fill_null(3),
+            # The name riders know: "R21", "20", or the long name when there is no short one.
+            pl.coalesce(
+                pl.col("route_short_name").str.strip_chars().replace("", None),
+                pl.col("route_long_name").str.strip_chars().replace("", None),
+                pl.col("route_id"),
+            ).alias("line"),
         ),
         on="route_id",
         how="left",
     ).with_columns(
+        pl.col("line").fill_null(pl.col("route_id")),
+        pl.col("trip_headsign").str.strip_chars().replace("", None).alias("headsign"),
         _prefix("trip_id", feed.name),
         _prefix("route_id", feed.name),
         _prefix("service_id", feed.name),
@@ -241,7 +258,7 @@ def prepare_city(feeds: Sequence[Feed], bbox: BBox, out_dir: Path) -> dict[str, 
         .sort("trip_id")
         .with_row_index("trip_idx")
         .with_columns(pl.col("trip_idx").cast(pl.Int32))
-        .select("trip_idx", "trip_id", "route_id", "service_id", "route_type")
+        .select("trip_idx", "trip_id", "route_id", "service_id", "route_type", "line", "headsign")
     )
     stop_times = (
         stop_times.join(trips.select("trip_id", "trip_idx"), on="trip_id", how="inner")

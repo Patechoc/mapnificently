@@ -14,7 +14,7 @@ import click
 import httpx
 
 from mapnificently import __version__
-from mapnificently.models.api import MAX_MINUTES
+from mapnificently.models.api import DEFAULT_MIN_CHANGE_MIN, MAX_MINUTES
 from mapnificently.settings import get_settings
 
 COORD_RE = re.compile(r"^\s*(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)\s*$")
@@ -60,20 +60,21 @@ def _departure(value: datetime | None) -> str | None:
     return value.isoformat()
 
 
+def _resolve_place(api: ApiClient, city: str, value: str) -> tuple[dict[str, float], str]:
+    """A "lat,lon" or a place name (looked up with the city's geocoder), and a label for it."""
+    if match := COORD_RE.match(value):
+        return {"lat": float(match[1]), "lon": float(match[2])}, value.strip()
+    hits = api.request("GET", f"/api/cities/{city}/geocode", params={"q": value, "limit": 1})
+    if not hits:
+        msg = f"no place found for {value!r}"
+        raise click.ClickException(msg)
+    hit = hits[0]
+    click.echo(f"{value!r} → {hit['label']} ({hit['lat']:.5f}, {hit['lon']:.5f})", err=True)
+    return {"lat": hit["lat"], "lon": hit["lon"]}, hit["label"]
+
+
 def _resolve_origins(api: ApiClient, city: str, values: tuple[str, ...]) -> list[dict[str, float]]:
-    origins = []
-    for value in values:
-        if match := COORD_RE.match(value):
-            origins.append({"lat": float(match[1]), "lon": float(match[2])})
-            continue
-        hits = api.request("GET", f"/api/cities/{city}/geocode", params={"q": value, "limit": 1})
-        if not hits:
-            msg = f"no place found for {value!r}"
-            raise click.ClickException(msg)
-        hit = hits[0]
-        click.echo(f"{value!r} → {hit['label']} ({hit['lat']:.5f}, {hit['lon']:.5f})", err=True)
-        origins.append({"lat": hit["lat"], "lon": hit["lon"]})
-    return origins
+    return [_resolve_place(api, city, value)[0] for value in values]
 
 
 def _table(rows: list[list[str]], headers: list[str]) -> None:
@@ -101,6 +102,13 @@ trip_options = [
     ),
     click.option("--walk-speed", type=float, default=1.25, show_default=True, help="m/s"),
     click.option("--max-walk", type=float, default=1000, show_default=True, help="metres"),
+    click.option(
+        "--min-change",
+        type=click.IntRange(0, 15),
+        default=DEFAULT_MIN_CHANGE_MIN,
+        show_default=True,
+        help="Minutes needed to change between vehicles.",
+    ),
 ]
 
 
@@ -251,6 +259,7 @@ def reach(
     departure: datetime | None,
     walk_speed: float,
     max_walk: float,
+    min_change: int,
     minutes: int,
     top: int,
     as_json: bool,
@@ -262,6 +271,7 @@ def reach(
         "departure": _departure(departure),
         "walk_speed_mps": walk_speed,
         "max_walk_m": max_walk,
+        "min_change_min": min_change,
         "max_minutes": minutes,
     }
     result = api.request("POST", f"/api/cities/{city}/reach", json=body)
@@ -308,6 +318,7 @@ def isochrone(
     departure: datetime | None,
     walk_speed: float,
     max_walk: float,
+    min_change: int,
     minutes: int,
     mode: str,
     output: Path | None,
@@ -319,6 +330,7 @@ def isochrone(
         "departure": _departure(departure),
         "walk_speed_mps": walk_speed,
         "max_walk_m": max_walk,
+        "min_change_min": min_change,
         "minutes": minutes,
         "mode": mode,
     }
@@ -331,3 +343,87 @@ def isochrone(
     features = result["features"]
     area = features[0]["properties"]["area_km2"] if features else 0
     click.echo(f"wrote {output} ({area} km²)", err=True)
+
+
+def _hhmm(iso: str) -> str:
+    return iso[11:16]
+
+
+def _minutes(seconds: int) -> str:
+    return f"{round(seconds / 60)} min"
+
+
+def _describe_leg(leg: dict[str, Any]) -> str:
+    if leg["mode"] == "walk":
+        if leg["from_name"] == leg["to_name"]:
+            return f"walk {leg['distance_m']} m to another platform at {leg['to_name']}"
+        return f"walk {leg['distance_m']} m to {leg['to_name']}"
+    towards = f" towards {leg['headsign']}" if leg["headsign"] else ""
+    stops = leg["num_stops"]
+    return (
+        f"{leg['mode']} {leg['line']}{towards}: {leg['from_name']} → {leg['to_name']}"
+        f" ({stops} stop{'s' if stops != 1 else ''})"
+    )
+
+
+@cli.command()
+@click.argument("city")
+@with_trip_options
+@click.option("--to", "destination", required=True, help='Destination: "lat,lon" or a place.')
+@click.option("--json", "as_json", is_flag=True, help="Print the raw API response.")
+@click.pass_context
+def route(
+    ctx: click.Context,
+    city: str,
+    origins: tuple[str, ...],
+    departure: datetime | None,
+    walk_speed: float,
+    max_walk: float,
+    min_change: int,
+    destination: str,
+    as_json: bool,
+) -> None:
+    """Fastest journey from each --from to --to: every walk, wait and ride."""
+    api = _api(ctx)
+    starts = [_resolve_place(api, city, value) for value in origins]
+    dest, dest_label = _resolve_place(api, city, destination)
+    body = {
+        "origins": [point for point, _ in starts],
+        "destination": dest,
+        "departure": _departure(departure),
+        "walk_speed_mps": walk_speed,
+        "max_walk_m": max_walk,
+        "min_change_min": min_change,
+    }
+    result = api.request("POST", f"/api/cities/{city}/route", json=body)
+    if as_json:
+        click.echo(json.dumps(result))
+        return
+    click.echo(
+        f"Departure {result['departure'][:16].replace('T', ' ')}, "
+        f"at least {result['min_change_min']} min to change ({result['computation_ms']} ms)",
+        err=True,
+    )
+    for (_, label), journey in zip(starts, result["journeys"], strict=True):
+        click.echo(f"\nFrom {label} to {dest_label}: ", nl=False)
+        if not journey["reachable"]:
+            click.echo(f"not reachable within {MAX_MINUTES} min")
+            continue
+        changes = journey["num_changes"]
+        click.echo(
+            f"{_minutes(journey['duration_s'])}, {changes} change{'s' if changes != 1 else ''}, "
+            f"arrive {_hhmm(journey['arrive'])}"
+        )
+        for leg in journey["legs"]:
+            wait = f"   (wait {_minutes(leg['wait_s'])})" if leg["wait_s"] >= 60 else ""
+            click.echo(
+                f"  {_hhmm(leg['depart'])}-{_hhmm(leg['arrive'])}  {_describe_leg(leg)}{wait}"
+            )
+    if len(starts) > 1:
+        fastest, everyone = result["fastest_s"], result["everyone_s"]
+        summary = f"fastest {_minutes(fastest)}" if fastest is not None else "nobody gets there"
+        if everyone is not None:
+            summary += f", everyone there after {_minutes(everyone)}"
+        elif fastest is not None:
+            summary += ", not everyone can get there"
+        click.echo(f"\n{summary.capitalize()}.")

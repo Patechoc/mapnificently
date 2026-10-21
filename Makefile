@@ -203,6 +203,21 @@ isochrone: ## Area reachable from FROM in CITY, as GeoJSON in OUT (MODE=union|in
 	@$(from_args); \
 	$(APP) isochrone $(CITY) "$${args[@]}" --minutes $(MINUTES) --mode $(MODE) $(AT_ARG) -o "$(OUT)"
 
+##@ Documentation
+
+MEDIA_PORT ?= 8799
+MEDIA_TOOLS = --no-project --python 3.12 --with playwright==1.48.0 --with pillow==11.3.0 --with numpy
+
+.PHONY: readme-media
+readme-media: ## Re-record the README's GIFs and screenshot into docs/media (needs fetched data)
+	@test -x .venv/bin/mapnificently || $(UV) sync --all-extras
+	@# Run the server binary itself (not through `uv run`), so stopping it stops the server.
+	@.venv/bin/mapnificently serve --port $(MEDIA_PORT) >/dev/null 2>&1 & server=$$!; \
+	trap 'kill $$server 2>/dev/null' EXIT; \
+	for _ in $$(seq 60); do curl -sf http://127.0.0.1:$(MEDIA_PORT)/api/config >/dev/null && break; sleep 1; done; \
+	$(UV) run $(MEDIA_TOOLS) python scripts/readme_media.py --base-url http://127.0.0.1:$(MEDIA_PORT) --out docs/media \
+	  || { echo "If Chromium is missing: $(UV) run $(MEDIA_TOOLS) playwright install chromium"; exit 1; }
+
 ##@ Housekeeping
 
 .PHONY: build

@@ -1,0 +1,106 @@
+# Continuous integration: the same checks as `make check` and `make security`, on every push
+# and pull request, with the tests run on each supported Python version.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Mondays 05:00 UTC: new vulnerability advisories, and the integration tests on fresh
+    # Entur data (feeds change every day).
+    - cron: "0 5 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Entur asks every client to identify itself; set the ENTUR_CLIENT_NAME repository
+  # variable to "<organisation>-<application>" (never a personal e-mail address).
+  MAPNIFICENTLY_ENTUR_CLIENT_NAME: ${{ vars.ENTUR_CLIENT_NAME || 'mapnificently-ci' }}
+  FORCE_COLOR: "1"
+
+jobs:
+  quality:
+    name: Lint, format, types (pre-commit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-extras
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+      - name: Pre-commit hooks (ruff, ruff-format, mypy, bandit, detect-secrets, …)
+        run: uv run pre-commit run --all-files --show-diff-on-failure
+
+  tests:
+    name: Tests (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.12", "3.13", "3.14"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-extras
+      - name: Unit tests with coverage (synthetic GTFS feed, no network)
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+      - name: Upload coverage report
+        if: matrix.python-version == '3.13'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-xml
+          path: coverage.xml
+          retention-days: 14
+
+  security:
+    name: Security (bandit, pip-audit)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-extras
+      - name: Bandit (code)
+        run: uv run bandit -c pyproject.toml -r src/
+      - name: pip-audit (locked dependencies)
+        run: uv run pip-audit
+
+  integration:
+    name: Integration tests (real Entur data)
+    # Downloads ~40 MB from Entur: weekly and on demand, not on every push.
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.13"
+          enable-cache: true
+      - name: Install
+        run: uv sync --locked --all-extras
+      - name: Integration tests
+        run: uv run pytest --run-integration tests/integration

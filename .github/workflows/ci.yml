@@ -20,9 +20,6 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Entur asks every client to identify itself; set the ENTUR_CLIENT_NAME repository
-  # variable to "<organisation>-<application>" (never a personal e-mail address).
-  MAPNIFICENTLY_ENTUR_CLIENT_NAME: ${{ vars.ENTUR_CLIENT_NAME || 'mapnificently-ci' }}
   FORCE_COLOR: "1"
 
 jobs:
@@ -104,3 +101,8 @@ jobs:
         run: uv sync --locked --all-extras
       - name: Integration tests
         run: uv run pytest --run-integration tests/integration
+        env:
+          # Only this job calls Entur, which asks every client to identify itself. Set the
+          # ENTUR_CLIENT_NAME repository variable to "<organisation>-<application>" (never a
+          # personal e-mail address).
+          MAPNIFICENTLY_ENTUR_CLIENT_NAME: ${{ vars.ENTUR_CLIENT_NAME || 'mapnificently-ci' }}

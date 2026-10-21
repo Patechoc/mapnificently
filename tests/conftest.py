@@ -17,6 +17,7 @@ Second feed (calendar_dates only, runs 2026-10-22):
     TG   G 07:50 → A 07:58
 """
 
+import os
 import zipfile
 from collections.abc import Iterator
 from pathlib import Path
@@ -167,7 +168,15 @@ def client(settings: Settings, store: CityDataStore) -> Iterator[TestClient]:
 
 
 @pytest.fixture(autouse=True)
-def _fresh_settings() -> Iterator[None]:
+def _fresh_settings(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> Iterator[None]:
+    """Each test starts from the default settings: no MAPNIFICENTLY_* variables from the
+    developer's shell or the CI (tests that need one set it themselves). Integration tests
+    keep them: they call Entur with the real client name."""
+    if request.node.get_closest_marker("integration") is None:
+        for name in [n for n in os.environ if n.startswith("MAPNIFICENTLY_")]:
+            monkeypatch.delenv(name)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()

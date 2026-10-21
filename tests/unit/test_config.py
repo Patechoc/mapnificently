@@ -206,3 +206,12 @@ class TestEnturProvider:
         provider = EnturProvider(settings, _mock_client(lambda _: httpx.Response(503)))
         with pytest.raises(ProviderError, match="geocoding failed"):
             provider.geocode(city, "x")
+
+
+def test_tests_ignore_mapnificently_variables_from_the_environment():
+    """CI sets MAPNIFICENTLY_ENTUR_CLIENT_NAME for its integration job; unit tests must still
+    see the defaults (conftest clears these variables). Regression: CI failed when it was set."""
+    import os  # noqa: PLC0415
+
+    assert not [name for name in os.environ if name.startswith("MAPNIFICENTLY_")]
+    assert Settings().entur_client_name == "mapnificently-dev"

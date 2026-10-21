@@ -14,9 +14,11 @@ Trip, route and service ids are prefixed with the feed name so feeds never clash
 are kept as-is, so a stop shared by two feeds (Entur's national ``NSR:Quay`` ids) is merged.
 """
 
+import csv
 import io
 import json
 import shutil
+import tempfile
 import zipfile
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -60,22 +62,44 @@ def _read_table(
     name: str,
     required: Sequence[str],
     optional: Sequence[str] = (),
+    keep: pl.Expr | None = None,
+    categorical: Sequence[str] = (),
 ) -> pl.DataFrame | None:
-    """Read ``name`` from the zip as strings, or ``None`` if the file is absent."""
+    """Read ``name`` from the zip as strings, or ``None`` if the file is absent.
+
+    ``keep`` filters rows while scanning, so rows we drop are never held in memory.
+    ``categorical`` columns (long, repeated ids) are scanned as categories, which takes much
+    less memory, and returned as strings.
+    """
     member = next((n for n in zf.namelist() if Path(n).name == name), None)
     if member is None:
         return None
-    raw = zf.read(member)
-    df = pl.read_csv(
-        io.BytesIO(raw),
-        infer_schema=False,
-        with_column_names=lambda cols: [c.strip().lstrip("﻿") for c in cols],
-        truncate_ragged_lines=True,
-    )
-    missing = [c for c in required if c not in df.columns]
+    with zf.open(member) as fh:
+        first_line = io.TextIOWrapper(fh, encoding="utf-8-sig", newline="").readline()
+    header = [c.strip() for c in next(csv.reader([first_line]), [])]
+    missing = [c for c in required if c not in header]
     if missing:
         msg = f"{name} is missing columns {missing}"
         raise FeedError(msg)
+    # Scan an extracted copy, keeping only the columns (and rows) we use: the raw file (300+
+    # MB for some stop_times.txt) is never held in memory, which keeps image builds small.
+    wanted = [c for c in (*required, *optional) if c in header]
+    with tempfile.TemporaryDirectory() as tmp:
+        path = Path(tmp) / name
+        with zf.open(member) as src, path.open("wb") as dst:
+            shutil.copyfileobj(src, dst, 1 << 20)
+        frame = pl.scan_csv(
+            path,
+            infer_schema=False,
+            schema_overrides={c: pl.Categorical for c in categorical if c in wanted} or None,
+            with_column_names=lambda cols: [c.strip().lstrip("\ufeff") for c in cols],
+            truncate_ragged_lines=True,
+        ).select(wanted)
+        if keep is not None:
+            frame = frame.filter(keep)
+        df = frame.collect().with_columns(
+            [pl.col(c).cast(pl.String) for c in categorical if c in wanted]
+        )
     df = df.with_columns(
         [pl.lit(None, dtype=pl.String).alias(c) for c in optional if c not in df.columns]
     )
@@ -102,7 +126,7 @@ class _FeedTables:
     calendar_dates: pl.DataFrame
 
 
-def _load_feed(feed: Feed) -> _FeedTables:
+def _load_feed(feed: Feed, bbox: BBox | None = None) -> _FeedTables:
     with zipfile.ZipFile(feed.path) as zf:
         stops = _require(
             _read_table(
@@ -122,15 +146,6 @@ def _load_feed(feed: Feed) -> _FeedTables:
         trips = _require(
             _read_table(zf, "trips.txt", ["route_id", "service_id", "trip_id"], ["trip_headsign"]),
             "trips.txt",
-        )
-        stop_times = _require(
-            _read_table(
-                zf,
-                "stop_times.txt",
-                ["trip_id", "stop_id", "stop_sequence"],
-                ["arrival_time", "departure_time", "pickup_type", "drop_off_type"],
-            ),
-            "stop_times.txt",
         )
         calendar = _read_table(
             zf, "calendar.txt", ["service_id", *WEEKDAYS, "start_date", "end_date"]
@@ -155,6 +170,26 @@ def _load_feed(feed: Feed) -> _FeedTables:
         )
         .drop_nulls(["lat", "lon"])
     )
+    if bbox is not None:
+        stops = stops.filter(
+            pl.col("lat").is_between(bbox.lat_min, bbox.lat_max)
+            & pl.col("lon").is_between(bbox.lon_min, bbox.lon_max)
+        )
+
+    # Regional feeds cover much more than a city (e.g. all of Vestland for Bergen): keep only
+    # stop times at stops in the area while scanning.
+    with zipfile.ZipFile(feed.path) as zf:
+        stop_times = _require(
+            _read_table(
+                zf,
+                "stop_times.txt",
+                ["trip_id", "stop_id", "stop_sequence"],
+                ["arrival_time", "departure_time", "pickup_type", "drop_off_type"],
+                keep=pl.col("stop_id").cast(pl.String).is_in(stops["stop_id"].implode()),
+                categorical=("trip_id", "stop_id"),
+            ),
+            "stop_times.txt",
+        )
 
     trips = trips.join(
         routes.select(
@@ -230,7 +265,7 @@ def _dates(*values: object) -> list[date]:
 
 def prepare_city(feeds: Sequence[Feed], bbox: BBox, out_dir: Path) -> dict[str, object]:
     """Merge ``feeds``, keep what lies inside ``bbox`` and write the tables to ``out_dir``."""
-    tables = [_load_feed(feed) for feed in feeds]
+    tables = [_load_feed(feed, bbox) for feed in feeds]
 
     stops = (
         pl.concat([t.stops for t in tables])

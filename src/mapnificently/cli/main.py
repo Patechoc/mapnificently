@@ -7,6 +7,8 @@
 import json
 import re
 import shutil
+import warnings
+from collections.abc import Callable
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -26,13 +28,31 @@ TIME_FORMATS = ["%Y-%m-%dT%H:%M", "%Y-%m-%d %H:%M", "%Y-%m-%dT%H:%M:%S", "%H:%M"
 
 
 class ApiClient:
-    """Thin wrapper turning HTTP errors into readable CLI errors."""
+    """Thin wrapper turning HTTP errors into readable CLI errors.
 
-    def __init__(self, client: httpx.Client) -> None:
+    When no server answers and a ``local`` factory is given, requests go to the same app run
+    in-process instead, so query commands work without `mapnificently serve`.
+    """
+
+    def __init__(
+        self, client: httpx.Client, local: Callable[[], httpx.Client] | None = None
+    ) -> None:
         self.client = client
+        self.local = local
 
     def request(self, method: str, path: str, **kwargs: Any) -> Any:
         try:
+            response = self.client.request(method, path, **kwargs)
+        except httpx.ConnectError as exc:
+            if self.local is None:
+                msg = f"cannot reach the API ({exc}). Is `mapnificently serve` running?"
+                raise click.ClickException(msg) from exc
+            click.echo(
+                f"No server at {self.client.base_url}: answering locally "
+                "(start one with `mapnificently serve` / `make serve`).",
+                err=True,
+            )
+            self.client, self.local = self.local(), None
             response = self.client.request(method, path, **kwargs)
         except httpx.HTTPError as exc:
             msg = f"cannot reach the API ({exc}). Is `mapnificently serve` running?"
@@ -47,11 +67,25 @@ class ApiClient:
         return response.json()
 
 
+def _local_client() -> httpx.Client:
+    """The API app run in-process, reading the local data directly."""
+    with warnings.catch_warnings():  # starlette's notice about httpx; harmless here
+        warnings.simplefilter("ignore")
+        from fastapi.testclient import TestClient  # noqa: PLC0415
+
+    from mapnificently.api import create_app  # noqa: PLC0415
+
+    return TestClient(create_app())
+
+
 def _api(ctx: click.Context) -> ApiClient:
     obj = ctx.ensure_object(dict)
     if "api" not in obj:
-        client = obj.get("client") or httpx.Client(base_url=obj["api_url"], timeout=120)
-        obj["api"] = ApiClient(client)
+        if "client" in obj:  # given by the caller (tests): use it as is
+            obj["api"] = ApiClient(obj["client"], obj.get("local"))
+        else:
+            client = httpx.Client(base_url=obj["api_url"], timeout=120)
+            obj["api"] = ApiClient(client, _local_client)
     api: ApiClient = obj["api"]
     return api
 
@@ -473,16 +507,10 @@ def export_static(
 def cities(ctx: click.Context) -> None:
     """List cities known to the API."""
     rows = [
-        [
-            c["id"],
-            c["name"],
-            c["provider"],
-            ",".join(c["feeds"]),
-            "yes" if c["data_ready"] else "no",
-        ]
+        [c["id"], c["name"], c.get("region", c["id"]), "yes" if c["data_ready"] else "no"]
         for c in _api(ctx).request("GET", "/api/cities")
     ]
-    _table(rows, ["id", "name", "provider", "feeds", "data"])
+    _table(rows, ["id", "name", "region", "data"])
 
 
 @cli.command()

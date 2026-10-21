@@ -104,6 +104,17 @@ def test_api_down():
     assert "mapnificently serve" in result.output
 
 
+def test_falls_back_to_local_app_without_server(client: TestClient):
+    down = httpx.Client(
+        base_url="http://127.0.0.1:9",
+        transport=httpx.MockTransport(lambda r: (_ for _ in ()).throw(httpx.ConnectError("x"))),
+    )
+    result = CliRunner().invoke(cli, ["cities"], obj={"client": down, "local": lambda: client})
+    assert result.exit_code == 0, result.output
+    assert "answering locally" in result.output
+    assert "testville" in result.output
+
+
 @pytest.fixture
 def local_env(tmp_path: Path, feed_zips, monkeypatch: pytest.MonkeyPatch) -> Path:
     cities_file = tmp_path / "cities.toml"

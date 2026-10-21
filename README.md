@@ -397,6 +397,10 @@ because frames share one palette and only store the pixels that changed.
 | Integration | the tests on real Entur data: weekly and on demand (Actions → CI → Run workflow) |
 | Docker | builds the image and smoke-tests it (`make docker-test`): on `main`, weekly and on demand |
 
+Dependabot (`.github/dependabot.yml`) opens weekly PRs when GitHub Actions or the Python
+dependencies in `uv.lock` have new versions (minor and patch updates grouped, major updates
+separately); the CI checks each of them.
+
 Set the repository variable `ENTUR_CLIENT_NAME` (Settings → Secrets and variables → Actions →
 Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.
 

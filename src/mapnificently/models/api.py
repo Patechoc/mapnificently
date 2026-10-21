@@ -14,6 +14,7 @@ MaxWalk = Annotated[
 ]
 Origins = Annotated[list[LatLon], Field(min_length=1, max_length=10)]
 
+MAX_MINUTES = 180  # longest travel time accepted; keep SLIDER_MAX in web/app.js in step
 DEFAULT_WALK_SPEED_MPS = 1.25  # 4.5 km/h
 DEFAULT_MAX_WALK_M = 1000.0
 
@@ -36,13 +37,13 @@ class TripRequest(BaseModel):
 class ReachRequest(TripRequest):
     """Earliest arrival at every stop reachable within ``max_minutes``."""
 
-    max_minutes: Annotated[int, Field(ge=1, le=180)] = 60
+    max_minutes: Annotated[int, Field(ge=1, le=MAX_MINUTES)] = 60
 
 
 class IsochroneRequest(TripRequest):
     """Area reachable within ``minutes``, as a GeoJSON polygon."""
 
-    minutes: Annotated[int, Field(ge=1, le=180)] = 30
+    minutes: Annotated[int, Field(ge=1, le=MAX_MINUTES)] = 30
     mode: Literal["union", "intersection"] = "union"
 
 

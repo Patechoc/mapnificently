@@ -18,6 +18,8 @@
     <div id="panel-body">
       <p class="lead">Where can you get by public transport in
         <strong><span id="minutes-label">30</span> minutes</strong>?</p>
+      <input id="minutes" class="time-slider" type="range" min="1" max="180" step="1" value="30"
+             aria-label="Travel time in minutes">
 
       <label class="field">City
         <select id="city"></select>
@@ -28,10 +30,6 @@
         <input id="search" type="search" placeholder="Search an address or stop, or click the map" autocomplete="off">
         <ul id="search-results" hidden></ul>
       </div>
-
-      <label class="field">Travel time
-        <input id="minutes" type="range" min="1" max="120" step="1" value="30">
-      </label>
 
       <div class="row">
         <label class="field">Date <input id="date" type="date"></label>

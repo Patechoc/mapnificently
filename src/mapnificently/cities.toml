@@ -1,0 +1,57 @@
+# Cities known to Mapnificently.
+#
+# Adding a city with a GTFS feed takes one block here, or in your own file pointed to by
+# MAPNIFICENTLY_CITIES_FILE (same format; blocks with the same id override these).
+#
+#   provider  "entur": feeds are Entur codespaces, downloaded from
+#                      https://storage.googleapis.com/marduk-production/outbound/gtfs/rb_<code>-aggregated-gtfs.zip
+#             "gtfs":  feeds are plain GTFS zip URLs (or local paths / file:// URLs)
+#   bbox      [lon_min, lat_min, lon_max, lat_max]; stops outside are dropped
+#   center    [lat, lon]; where the map opens
+
+[cities.oslo]
+name = "Oslo"
+timezone = "Europe/Oslo"
+center = [59.9111, 10.7528]
+bbox = [10.40, 59.70, 11.20, 60.20]
+provider = "entur"
+feeds = ["rut", "vyg"]
+attribution = "Timetables: Entur AS / Ruter / Vy (NLOD)"
+
+[cities.bergen]
+name = "Bergen"
+timezone = "Europe/Oslo"
+center = [60.3913, 5.3221]
+bbox = [5.00, 60.15, 5.65, 60.60]
+provider = "entur"
+feeds = ["sky", "vyg"]
+attribution = "Timetables: Entur AS / Skyss / Vy (NLOD)"
+
+[cities.trondheim]
+name = "Trondheim"
+timezone = "Europe/Oslo"
+center = [63.4305, 10.3951]
+bbox = [10.05, 63.25, 10.75, 63.55]
+provider = "entur"
+feeds = ["atb", "sjn"]
+attribution = "Timetables: Entur AS / AtB / SJ Nord (NLOD)"
+
+[cities.moss]
+name = "Moss"
+timezone = "Europe/Oslo"
+center = [59.4340, 10.6590]
+bbox = [10.45, 59.20, 11.00, 59.95]
+provider = "entur"
+feeds = ["ost", "vyg"]
+attribution = "Timetables: Entur AS / Østfold kollektivtrafikk / Vy (NLOD)"
+
+# A non-Norwegian example, using a plain GTFS URL:
+#
+# [cities.helsinki]
+# name = "Helsinki"
+# timezone = "Europe/Helsinki"
+# center = [60.1699, 24.9384]
+# bbox = [24.50, 60.05, 25.30, 60.40]
+# provider = "gtfs"
+# feeds = ["https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip"]
+# attribution = "Timetables: HSL (CC BY 4.0)"

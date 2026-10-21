@@ -19,9 +19,15 @@ classifiers = [
 
 dependencies = [
     "pydantic>=2.0",
+    "pydantic-settings>=2.2",
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+    "click>=8.1",
+    "httpx>=0.27",
+    "polars>=1.0",
+    "numpy>=1.26",
+    "scipy>=1.12",       # KD-tree for footpaths and origin snapping
     "shapely>=2.0",      # Geometry operations for isochrones
-    "geojson>=3.0",      # GeoJSON output
-    "numpy>=1.26",       # Numerical operations
 ]
 
 [project.optional-dependencies]
@@ -29,13 +35,13 @@ dev = [
     # Testing
     "pytest>=8.0",
     "pytest-cov>=4.0",
-    "pytest-asyncio>=0.23",
 
     # Linting and formatting
     "ruff>=0.4",
 
     # Type checking
     "mypy>=1.10",
+    "types-shapely",
 
     # Security
     "bandit>=1.7",
@@ -45,10 +51,8 @@ dev = [
     "pre-commit>=3.7",
 ]
 
-viz = [
-    "folium>=0.16",      # Interactive maps
-    "matplotlib>=3.8",   # Static visualizations
-]
+[project.scripts]
+mapnificently = "mapnificently.cli.main:cli"
 
 [project.urls]
 Homepage = "https://github.com/yourusername/mapnificently"
@@ -98,6 +102,7 @@ select = [
     "TID",    # flake8-tidy-imports
 ]
 ignore = [
+    "COM812",   # Conflicts with the formatter
     "PLR0913",  # Too many arguments (we'll use Pydantic models anyway)
     "PLR2004",  # Magic value comparison
     "S101",     # Use of assert (allowed in tests)
@@ -105,6 +110,7 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**/*.py" = [
+    "DTZ",     # Naive datetimes are fine in tests
     "S101",    # Allow assert in tests
     "ARG",     # Allow unused arguments in tests (fixtures)
     "PLR2004", # Allow magic values in tests
@@ -136,6 +142,10 @@ follow_imports = "normal"
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
+module = ["scipy.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 
@@ -150,6 +160,9 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+filterwarnings = [
+    "ignore:Using `httpx` with `starlette.testclient`",
+]
 addopts = [
     "-v",
     "--strict-markers",
@@ -157,7 +170,7 @@ addopts = [
 ]
 markers = [
     "unit: Unit tests",
-    "integration: Integration tests",
+    "integration: Integration tests (download real feeds, run with --run-integration)",
     "slow: Slow tests",
 ]
 

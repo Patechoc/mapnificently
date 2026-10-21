@@ -1,3 +1,3 @@
-"""Mapnificently - Public transit accessibility visualization in Python."""
+"""Mapnificently - public transport reachability maps in Python."""
 
 __version__ = "0.1.0"

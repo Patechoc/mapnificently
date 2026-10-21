@@ -203,6 +203,27 @@ isochrone: ## Area reachable from FROM in CITY, as GeoJSON in OUT (MODE=union|in
 	@$(from_args); \
 	$(APP) isochrone $(CITY) "$${args[@]}" --minutes $(MINUTES) --mode $(MODE) $(AT_ARG) -o "$(OUT)"
 
+##@ Docker (the image the "Run on Google Cloud" button deploys)
+
+IMAGE ?= mapnificently:local
+DOCKER_PORT ?= 8080
+
+.PHONY: docker-build
+docker-build: ## Build the image with every region's data baked in (~1 min)
+	docker build -t $(IMAGE) .
+
+.PHONY: docker-run
+docker-run: ## Run the image on http://127.0.0.1:DOCKER_PORT, like Cloud Run (Ctrl+C stops)
+	docker run --rm -p 127.0.0.1:$(DOCKER_PORT):8080 $(IMAGE)
+
+.PHONY: docker-test
+docker-test: docker-build ## Build, start and smoke-test the image (page, API, data, route)
+	scripts/docker_smoke.sh $(IMAGE)
+
+.PHONY: docker-shell
+docker-shell: ## Open a shell in the image (e.g. to run `mapnificently data status`)
+	docker run --rm -it --entrypoint bash $(IMAGE)
+
 ##@ Documentation
 
 MEDIA_PORT ?= 8799

@@ -173,7 +173,14 @@ def cli(ctx: click.Context, api_url: str | None) -> None:
 
 @cli.command()
 @click.option("--host", default="127.0.0.1", show_default=True)
-@click.option("--port", default=8000, show_default=True, type=int)
+@click.option(
+    "--port",
+    default=8000,
+    show_default=True,
+    type=int,
+    envvar="PORT",
+    help="Port to listen on (also read from $PORT, as set by Cloud Run).",
+)
 @click.option("--reload", is_flag=True, help="Restart on code changes (development).")
 def serve(host: str, port: int, reload: bool) -> None:
     """Run the API and web map."""
@@ -219,6 +226,13 @@ def _regions_named(store: "CityDataStore", names: tuple[str, ...]) -> list[str]:
         msg = f"unknown cities or regions: {', '.join(unknown)} (known: {known})"
         raise click.UsageError(msg)
     return regions
+
+
+@data.command("regions")
+def data_regions() -> None:
+    """Print the configured region ids, one per line (handy in scripts)."""
+    for region_id in _local_store().regions:
+        click.echo(region_id)
 
 
 @data.command("fetch")

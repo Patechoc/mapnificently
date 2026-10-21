@@ -106,3 +106,15 @@ jobs:
           # ENTUR_CLIENT_NAME repository variable to "<organisation>-<application>" (never a
           # personal e-mail address).
           MAPNIFICENTLY_ENTUR_CLIENT_NAME: ${{ vars.ENTUR_CLIENT_NAME || 'mapnificently-ci' }}
+
+  docker:
+    name: Docker image (build + smoke test)
+    # Building downloads and prepares every region's timetables (~270 MB from Entur):
+    # on main, weekly (feeds change) and on demand, not on every pull request.
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build the image and smoke-test it (as Cloud Run runs it)
+        run: make docker-test

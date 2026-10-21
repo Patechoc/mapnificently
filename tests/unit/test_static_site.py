@@ -77,6 +77,7 @@ def test_manifest(site: Path, test_city: CityConfig):
     assert city["files"]["timetables"]["2026-10-22"] == "data/testville/tt-2026-10-22.bin"
     assert manifest["max_minutes"] >= 180
     assert manifest["walk_detour"] > 1
+    assert manifest["entur_client_name"] == "mapnificently-dev"
 
 
 def test_network_file(site: Path, store: CityDataStore, test_city: CityConfig):

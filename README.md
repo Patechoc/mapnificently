@@ -240,9 +240,12 @@ After the first visit, a service worker keeps the page working offline:
 | | Offline? |
 |---|---|
 | Page, Leaflet (bundled), reachable areas, routes | ✅ |
-| Search | ✅ by stop name, from the exported data (no address search) |
+| Search | Online: addresses and places, from the browser (Entur, or Photon outside Norway). Offline: stop names only |
 | Timetables | ✅ for days you have already opened; only the exported days exist |
 | Map background | ✅ for areas you have already viewed (tiles are kept as you browse, never bulk-downloaded, per the OpenStreetMap tile policy) |
+
+Online searches go from the visitor's browser straight to Entur (or Photon), identified by
+`MAPNIFICENTLY_ENTUR_CLIENT_NAME` as set when exporting.
 
 To publish on GitHub Pages, put the contents of `site/` on the branch or folder Pages serves
 (e.g. a `gh-pages` branch), and export again regularly: the exported days move on.

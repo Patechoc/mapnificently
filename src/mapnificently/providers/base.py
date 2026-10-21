@@ -34,7 +34,18 @@ class TransitProvider(ABC):
 
     @abstractmethod
     def fetch_feeds(self, city: CityConfig, dest_dir: Path, *, force: bool = False) -> list[Path]:
-        """Download (or refresh) the city's GTFS zips into ``dest_dir`` and return their paths."""
+        """Download (or refresh) the city's GTFS zips into ``dest_dir`` and return their paths.
+
+        ``dest_dir`` is shared by every region using this provider, so a feed used by several
+        regions is stored once.
+        """
+
+    def feed_paths(self, city: CityConfig, dest_dir: Path) -> list[Path] | None:  # noqa: ARG002
+        """Where :meth:`fetch_feeds` stores the city's feeds, without downloading anything.
+
+        ``None`` means unknown: cleanup then leaves this provider's files alone.
+        """
+        return None
 
     def geocode(self, city: CityConfig, text: str, limit: int = 8) -> list[Place]:  # noqa: ARG002
         """Search for places in the city. Providers without a geocoder return nothing."""

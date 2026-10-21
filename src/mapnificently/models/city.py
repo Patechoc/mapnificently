@@ -1,6 +1,6 @@
 """City configuration models."""
 
-from typing import Annotated, Self
+from typing import Annotated, Any, Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
@@ -52,12 +52,77 @@ class LatLon(BaseModel):
     lon: Longitude
 
 
-class CityConfig(BaseModel):
-    """One city: where its data comes from and what area it covers."""
+def _timezone(value: str) -> str:
+    try:
+        ZoneInfo(value)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        msg = f"unknown timezone {value!r}"
+        raise ValueError(msg) from exc
+    return value
+
+
+def _latlon(value: object) -> object:
+    if isinstance(value, list | tuple) and len(value) == 2:
+        return {"lat": value[0], "lon": value[1]}
+    return value
+
+
+def _bbox(value: object) -> object:
+    if isinstance(value, list | tuple):
+        return BBox.from_list(list(value))
+    return value
+
+
+RegionId = Annotated[str, Field(pattern=r"^[a-z0-9_-]+$")]
+REGION_FIELDS = ("timezone", "bbox", "provider", "feeds", "attribution")
+
+
+class RegionConfig(BaseModel):
+    """An area whose timetables are downloaded and prepared once, shared by its cities.
+
+    A trip can use every operator in the region, so cities of one region (e.g. Oslo and Moss)
+    reach each other and give the same answers.
+    """
 
     model_config = ConfigDict(frozen=True)
 
-    id: Annotated[str, Field(pattern=r"^[a-z0-9_-]+$")]
+    id: RegionId
+    name: str
+    timezone: str
+    bbox: BBox
+    provider: str
+    feeds: Annotated[list[str], Field(min_length=1)]
+    attribution: str = ""
+    center: LatLon | None = Field(
+        default=None, description="Centre of the metric projection; defaults to the bbox centre."
+    )
+
+    _check_timezone = field_validator("timezone")(_timezone)
+    _center_from_list = field_validator("center", mode="before")(_latlon)
+    _bbox_from_list = field_validator("bbox", mode="before")(_bbox)
+
+    @property
+    def projection_center(self) -> LatLon:
+        """Where distances are measured from (the same for every city of the region)."""
+        if self.center is not None:
+            return self.center
+        return LatLon(
+            lat=(self.bbox.lat_min + self.bbox.lat_max) / 2,
+            lon=(self.bbox.lon_min + self.bbox.lon_max) / 2,
+        )
+
+
+class CityConfig(BaseModel):
+    """A city: a named view (map centre) onto a region's timetables.
+
+    Either name a ``region``, or give the region fields (``timezone``, ``bbox``, ``provider``,
+    ``feeds``, ``attribution``) directly: the city then is a region of its own.
+    The region fields are always filled in, copied from the region.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    id: RegionId
     name: str
     timezone: str
     center: LatLon
@@ -65,30 +130,37 @@ class CityConfig(BaseModel):
     provider: str
     feeds: Annotated[list[str], Field(min_length=1)]
     attribution: str = ""
+    region: RegionConfig
 
-    @field_validator("timezone")
-    @classmethod
-    def _check_timezone(cls, value: str) -> str:
-        try:
-            ZoneInfo(value)
-        except (ZoneInfoNotFoundError, ValueError) as exc:
-            msg = f"unknown timezone {value!r}"
-            raise ValueError(msg) from exc
-        return value
+    _check_timezone = field_validator("timezone")(_timezone)
+    _center_from_list = field_validator("center", mode="before")(_latlon)
+    _bbox_from_list = field_validator("bbox", mode="before")(_bbox)
 
-    @field_validator("center", mode="before")
+    @model_validator(mode="before")
     @classmethod
-    def _center_from_list(cls, value: object) -> object:
-        if isinstance(value, list | tuple) and len(value) == 2:
-            return {"lat": value[0], "lon": value[1]}
-        return value
-
-    @field_validator("bbox", mode="before")
-    @classmethod
-    def _bbox_from_list(cls, value: object) -> object:
-        if isinstance(value, list | tuple):
-            return BBox.from_list(list(value))
-        return value
+    def _fill_region(cls, data: Any) -> Any:
+        if not isinstance(data, dict):
+            return data
+        region = data.get("region")
+        if region is None:  # a city with its own feeds is a region of its own
+            data = dict(data)
+            data["region"] = {
+                "id": data.get("id"),
+                "name": data.get("name"),
+                "center": data.get("center"),
+                **{k: data[k] for k in REGION_FIELDS if k in data},
+            }
+            return data
+        if isinstance(region, dict):
+            region = RegionConfig(**region)
+        own = [k for k in REGION_FIELDS if k in data and k != "timezone"]
+        if own:
+            msg = (
+                f"city {data.get('id')!r} is in region {region.id!r}: set "
+                f"{', '.join(own)} on the region, not the city"
+            )
+            raise ValueError(msg)
+        return {**data, "region": region, **{k: getattr(region, k) for k in REGION_FIELDS}}
 
     @property
     def tz(self) -> ZoneInfo:

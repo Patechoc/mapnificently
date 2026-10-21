@@ -166,6 +166,8 @@ class CityInfo(BaseModel):
     provider: str
     feeds: list[str]
     attribution: str
+    region: str = Field(description="Region whose timetables the city uses.")
+    region_name: str
     data_ready: bool
 
 

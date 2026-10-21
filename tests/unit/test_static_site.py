@@ -138,8 +138,13 @@ def test_cli_export(tmp_path: Path, feed_zips, monkeypatch: pytest.MonkeyPatch):
         cli, ["export-static", "testville", "--start", "2026-10-22", "--days", "3", "-o", str(out)]
     )
     assert result.exit_code == 0, result.output
-    assert "testville: 3 days" in result.output
+    assert "testville (testville): 3 days" in result.output
+    assert "no trips" not in result.output
     assert len(list((out / "data" / "testville").glob("tt-*.bin"))) == 3
     missing = runner.invoke(cli, ["export-static", "oslo", "-o", str(out)])
     assert missing.exit_code == 2
     assert "no data for oslo" in missing.output
+    late = runner.invoke(
+        cli, ["export-static", "testville", "--start", "2030-01-01", "--days", "1", "-o", str(out)]
+    )
+    assert "warning: no trips on 2030-01-01" in late.output

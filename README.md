@@ -18,7 +18,9 @@ and the rest of the map is greyed out.
 - **CLI** (click) for the API and for managing data
 - **Pluggable data providers**: a city with a GTFS feed takes one config block
 
-Configured cities: **Oslo, Bergen, Trondheim and Moss**. Their data comes from
+Configured cities: **Oslo and Moss** (sharing the **Oslofjord** region: Oslo, Akershus, Østfold,
+Drammen and Vestfold, with Ruter, Vy, Østfold kollektivtrafikk, Flytoget, Brakar, VKT, Go-Ahead
+and SJ), **Bergen** and **Trondheim**. Their data comes from
 [Entur](https://developer.entur.org/), Norway's national journey planner, under the NLOD licence.
 
 ## Quick start
@@ -26,7 +28,7 @@ Configured cities: **Oslo, Bergen, Trondheim and Moss**. Their data comes from
 ```bash
 make install                      # uv sync --all-extras
 make data-fetch CITY=trondheim    # ~40 MB, a few seconds
-make data-fetch-all               # all cities, ~360 MB on disk
+make data-fetch-all               # every region, ~310 MB on disk, under 20 s
 make serve                        # http://127.0.0.1:8000
 ```
 
@@ -136,27 +138,64 @@ Typical timings on a laptop:
 | Oslo (Ruter + Vy, about 440k connections a day) | `/reach` with a 120-minute window | about 10–20 ms |
 | Oslo | 30-minute `/isochrone` polygon | about 70 ms |
 
-## Adding a city
+## Regions, cities and stored data
 
-A city that publishes GTFS takes one block in `src/mapnificently/cities.toml`. You can also put
-the block in your own file and point `MAPNIFICENTLY_CITIES_FILE` at it; a block with the same id
-overrides the packaged one.
+Timetables belong to **regions**: a region is downloaded and prepared once, and a trip can use
+every operator in it. **Cities** are named views of a region (where the map opens), so Oslo and
+Moss share one copy of the Oslofjord data and give the same answers: Moss stasjon → Sognsvann
+(RE20, then the metro) or Moss → Drammen (RE20, then R13) just work.
+
+Downloads are shared too, one folder per provider, so a feed used by several regions (Vy trains
+are in both Oslofjord and Bergen) is stored once:
+
+```
+~/.cache/mapnificently/
+  feeds/entur/vyg.zip, rut.zip, …     downloads, shared by every region
+  regions/oslofjord/prepared/         prepared tables and cached timetables of one region
+```
+
+```bash
+make data-fetch CITY=moss          # fetches Moss's region (oslofjord), for Oslo too
+make data-status                   # regions, their cities, dates and disk use
+make data-status PATHS=1           # ...and where every file is
+make data-prune                    # remove what no region uses (asks first)
+make data-clean CITY=bergen        # remove one region and the feeds only it uses (asks first)
+```
+
+### Adding a city or region
+
+A city in an existing region is three lines in `src/mapnificently/cities.toml`, or in your own
+file pointed to by `MAPNIFICENTLY_CITIES_FILE` (blocks with the same id override the packaged
+ones, regions included):
 
 ```toml
-[cities.helsinki]
+[cities.drammen]
+name = "Drammen"
+region = "oslofjord"
+center = [59.7439, 10.2045]               # lat, lon: where the map opens
+```
+
+A new area is a region (operators and area) plus its cities:
+
+```toml
+[regions.helsinki]
 name = "Helsinki"
 timezone = "Europe/Helsinki"
-center = [60.1699, 24.9384]               # lat, lon: where the map opens
-bbox = [24.50, 60.05, 25.30, 60.40]       # lon_min, lat_min, lon_max, lat_max
+bbox = [24.50, 60.05, 25.30, 60.40]       # lon_min, lat_min, lon_max, lat_max; stops outside are dropped
 provider = "gtfs"                         # plain GTFS URLs (or local paths)
 feeds = ["https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip"]
 attribution = "Timetables: HSL (CC BY 4.0)"
+
+[cities.helsinki]
+name = "Helsinki"
+region = "helsinki"
+center = [60.1699, 24.9384]
 ```
 
-Then run `mapnificently data fetch helsinki`. For Norwegian cities, use `provider = "entur"` and
-list Entur codespaces as feeds, for example `rut` for Ruter, `vyg` for Vy trains, `sky` for Skyss,
-`atb` for AtB and `ost` for Østfold. Feeds are merged, and stops shared between feeds are counted
-once.
+A city may also give the region fields itself (no `region`): it is then a region of its own.
+For Norway use `provider = "entur"` with Entur codespaces as feeds, e.g. `rut` (Ruter), `vyg`
+(Vy trains), `ost` (Østfold), `bra` (Brakar), `vkt` (Vestfold og Telemark), `flt` (Flytoget),
+`sky` (Skyss), `atb` (AtB). Stops shared between feeds (Entur's national ids) are merged.
 
 ## Adding a provider
 
@@ -192,7 +231,7 @@ inside `fetch_feeds`, and the rest of the pipeline stays the same.
 exported for a fixed number of days.
 
 ```bash
-make static CITIES="moss oslo" DAYS=7    # writes site/ (Moss ~5 MB, Oslo ~60 MB for 7 days)
+make static CITIES="moss oslo" DAYS=7    # writes site/: the Oslofjord region once, ~13 MB per day
 make static-serve                        # http://127.0.0.1:8080, like GitHub Pages would serve it
 ```
 
@@ -237,9 +276,9 @@ Settings are read from environment variables or a `.env` file:
   serves, because `shapes.txt` is not read.
 - **Approximate walking.** Distances are straight lines × 1.2, not routed along streets. Water and
   motorways are not taken into account.
-- **One area per city.** Each city only uses its own operators and area. Moss includes Ruter
-  and Flytoget so trips continue into Oslo, but Oslo does not include Østfold. The app says so
-  when a destination is outside the city's area.
+- **Region edges.** Trips only use the operators and area of the city's region; a destination
+  outside it (e.g. Hamar from Oslo) is reported as outside the area. Extend the region to go
+  further. The Moss–Horten ferry is in none of the configured feeds.
 - **Shared tile server.** The web map uses the public OpenStreetMap tiles. Before publishing
   widely, switch to a tile provider that allows that traffic.
 

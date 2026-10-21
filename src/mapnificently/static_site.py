@@ -1,7 +1,7 @@
 """Export a static, offline-capable copy of the web map (for GitHub Pages or any file host).
 
 Without a server, routing runs in the browser (``web/offline.js``), as in the original
-Mapnificent. The export writes, per city, the stop network and one timetable per chosen date
+Mapnificent. The export writes, per region, the stop network and one timetable per chosen date
 as binary "containers": a little-endian ``uint32`` header length, a JSON header, then
 8-byte-aligned arrays the browser wraps as typed arrays without parsing.
 
@@ -10,8 +10,8 @@ Layout of the exported directory::
     index.html, sw.js, .nojekyll
     static/            the web map (app.js, offline.js, style.css, vendor/leaflet)
     data/manifest.json cities, their dates and files
-    data/<city>/network.bin      stops, walking links, trip names
-    data/<city>/tt-<date>.bin    connections of one service day
+    data/<region>/network.bin    stops, walking links, trip names (shared by its cities)
+    data/<region>/tt-<date>.bin  connections of one service day
 """
 
 import json
@@ -75,47 +75,51 @@ def _dictionary(values: list[str | None]) -> tuple[list[str], np.ndarray]:
     return list(words), codes
 
 
-def _export_city(
+def _export_region(
     store: CityDataStore, city_id: str, dates: list[date], out: Path
 ) -> dict[str, Any]:
-    city = store.cities[city_id]
+    """Write the network and timetables of ``city_id``'s region; return its files and sizes."""
+    region = store.region_of(city_id)
     network = store.network(city_id)
     trips = store.trip_info(city_id)
-    city_dir = out / "data" / city_id
-    city_dir.mkdir(parents=True, exist_ok=True)
+    region_dir = out / "data" / region.id
+    region_dir.mkdir(parents=True, exist_ok=True)
 
     lines, line_codes = _dictionary(list(trips.line))
     headsigns, headsign_codes = _dictionary(trips.headsign)
-    size = write_container(
-        city_dir / "network.bin",
-        {
-            "city": city_id,
-            "names": network.names,
-            "center": [city.center.lat, city.center.lon],
-            "num_trips": trips.num_trips,
-            "lines": lines,
-            "headsigns": headsigns,
-        },
-        {
-            "lat": network.lat.astype(np.float64),
-            "lon": network.lon.astype(np.float64),
-            "fp_ptr": network.fp_ptr.astype(np.int32),
-            "fp_to": network.fp_to.astype(np.int32),
-            "fp_dist": network.fp_dist.astype(np.float64),
-            "trip_line": line_codes,
-            "trip_headsign": headsign_codes,
-            "trip_route_type": trips.route_type.astype(np.int32),
-        },
-    )
-    files = {"network": f"data/{city_id}/network.bin"}
-    sizes = {"network.bin": size}
+    sizes = {
+        "network.bin": write_container(
+            region_dir / "network.bin",
+            {
+                "region": region.id,
+                "names": network.names,
+                # The browser must measure distances exactly like the server.
+                "center": [network.projection.lat0, network.projection.lon0],
+                "num_trips": trips.num_trips,
+                "lines": lines,
+                "headsigns": headsigns,
+            },
+            {
+                "lat": network.lat.astype(np.float64),
+                "lon": network.lon.astype(np.float64),
+                "fp_ptr": network.fp_ptr.astype(np.int32),
+                "fp_to": network.fp_to.astype(np.int32),
+                "fp_dist": network.fp_dist.astype(np.float64),
+                "trip_line": line_codes,
+                "trip_headsign": headsign_codes,
+                "trip_route_type": trips.route_type.astype(np.int32),
+            },
+        )
+    }
     timetables = {}
+    connections = {}
     for day in dates:
         tt = store.timetable(city_id, day)
+        connections[day.isoformat()] = tt.num_connections
         name = f"tt-{day.isoformat()}.bin"
         flags = tt.board.astype(np.uint8) * BOARD | tt.alight.astype(np.uint8) * ALIGHT
         sizes[name] = write_container(
-            city_dir / name,
+            region_dir / name,
             {"date": day.isoformat(), "num_trips": tt.num_trips},
             {
                 "dep_stop": tt.dep_stop.astype(np.int32),
@@ -126,15 +130,9 @@ def _export_city(
                 "flags": flags.astype(np.uint8),
             },
         )
-        timetables[day.isoformat()] = f"data/{city_id}/{name}"
-
-    info = {
-        **city.model_dump(mode="json"),
-        "data_ready": True,
-        "dates": [d.isoformat() for d in dates],
-        "files": {**files, "timetables": timetables},
-    }
-    return {"info": info, "sizes": sizes}
+        timetables[day.isoformat()] = f"data/{region.id}/{name}"
+    files = {"network": f"data/{region.id}/network.bin", "timetables": timetables}
+    return {"files": files, "sizes": sizes, "connections": connections}
 
 
 def export_static_site(
@@ -151,14 +149,32 @@ def export_static_site(
     shutil.copytree(WEB_DIR, out / "static", ignore=shutil.ignore_patterns("index.html", "sw.js"))
     (out / ".nojekyll").write_text("")
 
-    exported = {city_id: _export_city(store, city_id, dates, out) for city_id in city_ids}
+    regions: dict[str, dict[str, Any]] = {}
+    for city_id in city_ids:  # each region once, however many of its cities are exported
+        region_id = store.region_of(city_id).id
+        if region_id not in regions:
+            regions[region_id] = _export_region(store, city_id, dates, out)
+    cities = []
+    for city_id in city_ids:
+        city = store.cities[city_id]
+        info = city.model_dump(mode="json", exclude={"region"})
+        cities.append(
+            {
+                **info,
+                "region": city.region.id,
+                "region_name": city.region.name,
+                "data_ready": True,
+                "dates": [d.isoformat() for d in dates],
+                "files": regions[city.region.id]["files"],
+            }
+        )
     generated = datetime.now(UTC).replace(microsecond=0)
     manifest = {
         "generated_at": generated.isoformat(),
         "version": __version__,
         "max_minutes": MAX_MINUTES,
         "walk_detour": WALK_DETOUR,
-        "cities": [e["info"] for e in exported.values()],
+        "cities": cities,
     }
     (out / "data" / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1))
 
@@ -173,6 +189,7 @@ def export_static_site(
 
     return {
         "out": str(out),
-        "cities": {c: e["sizes"] for c, e in exported.items()},
+        "regions": {r: e["sizes"] for r, e in regions.items()},
+        "connections": {r: e["connections"] for r, e in regions.items()},
         "total_bytes": sum(p.stat().st_size for p in out.rglob("*") if p.is_file()),
     }

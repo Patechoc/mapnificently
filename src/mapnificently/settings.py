@@ -30,9 +30,23 @@ class Settings(BaseSettings):
     )
     timetable_cache_size: int = Field(default=4, ge=1, description="Timetables kept in memory.")
 
-    def city_dir(self, city_id: str) -> Path:
-        """Directory holding the feeds and built timetables of one city."""
-        return self.data_dir / city_id
+    @property
+    def feeds_root(self) -> Path:
+        """Downloaded feeds, one folder per provider, shared by all regions."""
+        return self.data_dir / "feeds"
+
+    @property
+    def regions_root(self) -> Path:
+        """Prepared data, one folder per region."""
+        return self.data_dir / "regions"
+
+    def feeds_dir(self, provider: str) -> Path:
+        """Where a provider's downloads are kept (shared by every region using it)."""
+        return self.feeds_root / provider
+
+    def region_dir(self, region_id: str) -> Path:
+        """Prepared tables and cached timetables of one region."""
+        return self.regions_root / region_id
 
 
 @lru_cache

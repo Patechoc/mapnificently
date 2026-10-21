@@ -64,7 +64,12 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
         return JSONResponse(status_code=status.HTTP_409_CONFLICT, content={"detail": str(exc)})
 
     def city_info(city: CityConfig, store: CityDataStore) -> CityInfo:
-        return CityInfo(**city.model_dump(), data_ready=store.is_ready(city.id))
+        return CityInfo(
+            **city.model_dump(exclude={"region"}),
+            region=city.region.id,
+            region_name=city.region.name,
+            data_ready=store.is_ready(city.id),
+        )
 
     @app.get("/api/config", tags=["cities"])
     def config() -> AppConfig:
@@ -109,7 +114,10 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
     def refresh_city(
         city: CityDep, store: StoreDep, background: BackgroundTasks, force: bool = False
     ) -> dict[str, str]:
-        """Download the city's feeds again and rebuild its data, in the background."""
+        """Download the feeds of the city's region again and rebuild it, in the background.
+
+        Every city of the same region gets the new data.
+        """
         background.add_task(store.refresh, city.id, force=force)
         return {"status": "accepted", "city": city.id}
 

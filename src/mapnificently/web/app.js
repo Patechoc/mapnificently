@@ -489,8 +489,9 @@ function routeSummary(result, origins) {
   const reachable = result.journeys.filter((j) => j.reachable);
   if (!reachable.length) {
     if (!insideCity(state.destination.lat, state.destination.lon)) {
-      return `This place is outside the ${state.city.name} area, so ${state.city.name}'s timetables cannot reach it. `
-        + "Try another city, or add the operators that serve it to this city (see the README).";
+      const area = state.city.region_name || state.city.name;
+      return `This place is outside the ${area} area, so these timetables cannot reach it. `
+        + "Try another city, or add the operators that serve it to the region (see the README).";
     }
     return `Not reachable within ${state.maxMinutes} min.`;
   }

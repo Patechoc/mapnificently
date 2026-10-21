@@ -5,6 +5,7 @@ from mapnificently.providers.entur import EnturProvider
 from mapnificently.providers.gtfs_url import GtfsUrlProvider
 from mapnificently.providers.registry import (
     UnknownProviderError,
+    UnknownRegionError,
     get_provider,
     load_cities,
     provider_classes,
@@ -16,6 +17,7 @@ __all__ = [
     "ProviderError",
     "TransitProvider",
     "UnknownProviderError",
+    "UnknownRegionError",
     "get_provider",
     "load_cities",
     "provider_classes",

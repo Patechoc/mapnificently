@@ -31,7 +31,6 @@ CHANGE  ?= 2
 OUT     ?= $(CITY)-$(MINUTES)min.geojson
 Q       ?= $(FROM)
 
-DATA_DIR ?= $(or $(MAPNIFICENTLY_DATA_DIR),$(HOME)/.cache/mapnificently)
 
 # Expands FROM="a;b" into: --from "a" --from "b" (inside a recipe, needs bash).
 define from_args
@@ -111,27 +110,30 @@ coverage: ## Run unit tests with a coverage report (HTML in htmlcov/)
 ##@ Data
 
 .PHONY: data-fetch
-data-fetch: ## Download and prepare timetables for CITY
+data-fetch: ## Download and prepare the region of CITY (a city or region name)
 	$(APP) data fetch $(CITY)
 
 .PHONY: data-fetch-all
-data-fetch-all: ## Download and prepare timetables for every configured city
+data-fetch-all: ## Download and prepare every configured region
 	$(APP) data fetch --all
 
 .PHONY: data-refresh
-data-refresh: ## Re-download CITY's feeds even if unchanged, then rebuild
+data-refresh: ## Re-download the feeds of CITY's region even if unchanged, then rebuild
 	$(APP) data fetch --force $(CITY)
 
 .PHONY: data-status
-data-status: ## Show which cities have data, its dates and disk size (PATHS=1: where it is stored)
+data-status: ## Show which regions have data, its dates and disk size (PATHS=1: where it is stored)
 	$(APP) data status $(if $(PATHS),--paths)
 
 .PHONY: data-clean
-data-clean: ## Delete CITY's downloaded and prepared data (CITY must be given)
+data-clean: ## Delete the data of CITY's region, and feeds only it uses (CITY must be given; asks first)
 	@if [ "$(origin CITY)" = "file" ] || [ -z "$(strip $(CITY))" ]; then \
-		echo "usage: make data-clean CITY=<city>"; exit 2; fi
-	rm -rf -- "$(DATA_DIR)/$(CITY)"
-	@echo "removed $(DATA_DIR)/$(CITY)"
+		echo "usage: make data-clean CITY=<city or region>"; exit 2; fi
+	$(APP) data remove $(CITY)
+
+.PHONY: data-prune
+data-prune: ## Delete data no region uses (old layouts, removed regions, unused feeds; asks first)
+	$(APP) data prune
 
 ##@ Run
 

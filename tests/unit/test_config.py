@@ -67,7 +67,8 @@ class TestRegistry:
     def test_packaged_cities(self, settings: Settings):
         cities = load_cities(settings)
         assert {"oslo", "bergen", "trondheim", "moss"} <= set(cities)
-        assert cities["moss"].feeds == ["ost", "vyg", "rut", "flt"]
+        assert cities["moss"].region.id == cities["oslo"].region.id == "oslofjord"
+        assert {"rut", "vyg", "ost", "flt"} <= set(cities["moss"].feeds)
         assert all(c.provider == "entur" for c in cities.values())
 
     def test_user_file_overrides_and_extends(self, tmp_path: Path):
@@ -171,7 +172,7 @@ class TestEnturProvider:
         city = load_cities(settings)["oslo"]
         provider = EnturProvider(settings)
         names = [name for name, _ in provider.feed_sources(city)]
-        assert names == ["rut", "vyg"]
+        assert names[:2] == ["rut", "vyg"]
         assert provider.feed_sources(city)[0][1].endswith("/rb_rut-aggregated-gtfs.zip")
         assert provider.client.headers["ET-Client-Name"] == "mapnificently-dev"
 

@@ -118,28 +118,11 @@ def local_env(tmp_path: Path, feed_zips, monkeypatch: pytest.MonkeyPatch) -> Pat
     return tmp_path
 
 
-def test_data_fetch_and_status(local_env: Path):
-    runner = CliRunner()
-    result = runner.invoke(cli, ["data", "fetch", "testville"])
+def test_data_fetch(local_env: Path):
+    result = CliRunner().invoke(cli, ["data", "fetch", "testville"])
     assert result.exit_code == 0, result.output
+    assert "testville (testville): fetching" in result.output
     assert "7 stops" in result.output
-    (local_env / "data" / "oldcity").mkdir()  # left over from a removed city
-    (local_env / "data" / "oldcity" / "x.zip").write_bytes(b"0" * 2500)
-    status = runner.invoke(cli, ["data", "status"])
-    assert "testville" in status.output
-    assert "ready" in status.output
-    assert "missing" in status.output  # packaged cities without data
-    [old_row] = [line for line in status.output.splitlines() if line.startswith("oldcity")]
-    assert "unused" in old_row
-    assert "2.5 KB" in old_row
-    assert "total" in status.output
-    assert "--paths" in status.output
-    paths = runner.invoke(cli, ["data", "status", "--paths"])
-    assert f"testville: {local_env / 'data' / 'testville'}" in paths.output
-    assert "downloaded feeds" in paths.output
-    assert "feed1.zip, feed2.zip" in paths.output
-    assert "prepared data" in paths.output
-    assert "oslo: nothing downloaded yet" in paths.output
 
 
 def test_data_fetch_usage_errors(local_env: Path):

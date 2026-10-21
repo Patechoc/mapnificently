@@ -3,6 +3,8 @@
 Data is free under NLOD. Entur asks every client to identify itself with ``ET-Client-Name``.
 """
 
+from pathlib import Path
+
 import httpx
 
 from mapnificently.models import CityConfig, Place
@@ -23,6 +25,10 @@ class EnturProvider(GtfsUrlProvider):
 
     def feed_sources(self, city: CityConfig) -> list[tuple[str, str]]:
         return [(code, ENTUR_GTFS_URL.format(code=code)) for code in city.feeds]
+
+    def feed_path(self, name: str, source: str, dest_dir: Path) -> Path:  # noqa: ARG002
+        """Codespaces are unique, so feeds are simply ``<code>.zip``."""
+        return dest_dir / f"{name}.zip"
 
     def geocode(self, city: CityConfig, text: str, limit: int = 8) -> list[Place]:
         params: dict[str, str | int | float] = {

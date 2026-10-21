@@ -1,5 +1,6 @@
 """Generic provider: each feed is a GTFS zip URL, a ``file://`` URL or a local path."""
 
+import hashlib
 import json
 import re
 import shutil
@@ -27,12 +28,22 @@ class GtfsUrlProvider(TransitProvider):
         """``(name, url_or_path)`` for each feed of the city."""
         return [(feed_name(feed), feed) for feed in city.feeds]
 
+    def feed_path(self, name: str, source: str, dest_dir: Path) -> Path:
+        """One folder per source, so two URLs ending in the same file name never clash."""
+        digest = hashlib.sha256(source.encode()).hexdigest()[:12]
+        return dest_dir / digest / f"{name}.zip"
+
+    def feed_paths(self, city: CityConfig, dest_dir: Path) -> list[Path]:
+        return [self.feed_path(name, source, dest_dir) for name, source in self.feed_sources(city)]
+
     def fetch_feeds(self, city: CityConfig, dest_dir: Path, *, force: bool = False) -> list[Path]:
-        dest_dir.mkdir(parents=True, exist_ok=True)
-        return [
-            self._fetch_one(source, dest_dir / f"{name}.zip", force=force)
-            for name, source in self.feed_sources(city)
-        ]
+        paths = []
+        for (_, source), dest in zip(
+            self.feed_sources(city), self.feed_paths(city, dest_dir), strict=True
+        ):
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            paths.append(self._fetch_one(source, dest, force=force))
+        return paths
 
     def _fetch_one(self, source: str, dest: Path, *, force: bool) -> Path:
         parsed = urlparse(source)

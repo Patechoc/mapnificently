@@ -12,7 +12,7 @@ from typing import Any
 
 import httpx
 
-from mapnificently.models import CityConfig
+from mapnificently.models import CityConfig, RegionConfig
 from mapnificently.providers.base import TransitProvider
 from mapnificently.providers.entur import EnturProvider
 from mapnificently.providers.gtfs_url import GtfsUrlProvider
@@ -50,19 +50,41 @@ def get_provider(
     return cls(settings, client)
 
 
+class UnknownRegionError(KeyError):
+    """A city names a region that is not defined."""
+
+
 def _cities_from_toml(data: dict[str, Any]) -> dict[str, CityConfig]:
-    return {
-        city_id: CityConfig(id=city_id, **fields)
-        for city_id, fields in data.get("cities", {}).items()
+    regions = {
+        region_id: RegionConfig(id=region_id, **fields)
+        for region_id, fields in data.get("regions", {}).items()
     }
+    cities = {}
+    for city_id, raw in data.get("cities", {}).items():
+        fields = dict(raw)
+        if "region" in fields:
+            region_id = fields.pop("region")
+            if region_id not in regions:
+                msg = f"city {city_id!r} uses unknown region {region_id!r}"
+                raise UnknownRegionError(msg)
+            fields["region"] = regions[region_id]
+        cities[city_id] = CityConfig(id=city_id, **fields)
+    return cities
 
 
 def load_cities(settings: Settings) -> dict[str, CityConfig]:
-    """Packaged cities, overridden and extended by ``settings.cities_file``."""
+    """Packaged regions and cities, overridden and extended by ``settings.cities_file``.
+
+    Both files are merged before cities are linked to regions, so a user file can redefine a
+    packaged region (e.g. add a feed) and every city of that region follows.
+    """
     packaged = resources.files("mapnificently").joinpath("cities.toml").read_text("utf-8")
-    cities = _cities_from_toml(tomllib.loads(packaged))
+    data = tomllib.loads(packaged)
     if settings.cities_file is not None:
-        cities |= _cities_from_toml(tomllib.loads(settings.cities_file.read_text("utf-8")))
+        user = tomllib.loads(settings.cities_file.read_text("utf-8"))
+        for section in ("regions", "cities"):
+            data[section] = data.get(section, {}) | user.get(section, {})
+    cities = _cities_from_toml(data)
     for city in cities.values():
         if city.provider not in provider_classes():
             msg = f"city {city.id!r} uses unknown provider {city.provider!r}"

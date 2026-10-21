@@ -17,7 +17,7 @@ from mapnificently.models.api import (
     StopsResponse,
     TripRequest,
 )
-from mapnificently.models.city import BBox, CityConfig, LatLon
+from mapnificently.models.city import BBox, CityConfig, LatLon, RegionConfig
 
 __all__ = [
     "AppConfig",
@@ -34,6 +34,7 @@ __all__ = [
     "Place",
     "ReachRequest",
     "ReachResponse",
+    "RegionConfig",
     "RouteRequest",
     "RouteResponse",
     "StopsResponse",

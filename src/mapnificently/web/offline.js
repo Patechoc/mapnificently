@@ -18,8 +18,8 @@
   };
 
   let manifestPromise = null;
-  const networks = new Map();
-  const timetables = new Map(); // "city/date" -> Promise, least recently used first
+  const networks = new Map();   // file -> Promise
+  const timetables = new Map(); // file -> Promise, least recently used first
 
   class HttpError extends Error {
     constructor(status, detail) { super(detail); this.status = status; }
@@ -59,11 +59,12 @@
     return found;
   }
 
-  function network(id) {
-    if (!networks.has(id)) {
+  // Cached per file: cities of one region share their region's files.
+  async function network(id) {
+    const file = (await city(id)).files.network;
+    if (!networks.has(file)) {
       const promise = (async () => {
-        const info = await city(id);
-        const { meta, arrays } = parseContainer(await fetchBuffer(info.files.network));
+        const { meta, arrays } = parseContainer(await fetchBuffer(file));
         const [lat0, lon0] = meta.center;
         const kx = EARTH_RADIUS_M * Math.cos(lat0 * Math.PI / 180) * Math.PI / 180;
         const ky = EARTH_RADIUS_M * Math.PI / 180;
@@ -77,14 +78,18 @@
         const project = (lat, lon) => [(lon - lon0) * kx, (lat - lat0) * ky];
         return { ...arrays, ...meta, n, x, y, project };
       })();
-      promise.catch(() => networks.delete(id));
-      networks.set(id, promise);
+      promise.catch(() => networks.delete(file));
+      networks.set(file, promise);
     }
-    return networks.get(id);
+    return networks.get(file);
   }
 
-  function timetable(id, day) {
-    const key = `${id}/${day}`;
+  async function timetable(id, day) {
+    const info = await city(id);
+    const key = info.files.timetables[day];
+    if (!key) {
+      throw new HttpError(409, `No offline timetable for ${day}. This export covers ${info.dates[0]} to ${info.dates[info.dates.length - 1]}.`);
+    }
     if (timetables.has(key)) {
       const promise = timetables.get(key);
       timetables.delete(key);
@@ -92,12 +97,7 @@
       return promise;
     }
     const promise = (async () => {
-      const info = await city(id);
-      const file = info.files.timetables[day];
-      if (!file) {
-        throw new HttpError(409, `No offline timetable for ${day}. This export covers ${info.dates[0]} to ${info.dates[info.dates.length - 1]}.`);
-      }
-      const { meta, arrays } = parseContainer(await fetchBuffer(file));
+      const { meta, arrays } = parseContainer(await fetchBuffer(key));
       return { ...arrays, numTrips: meta.num_trips };
     })();
     promise.catch(() => timetables.delete(key));

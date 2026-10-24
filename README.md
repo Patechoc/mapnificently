@@ -4,9 +4,13 @@
 
 [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/Patechoc/mapnificently.git) *your own copy, with the data of every city included ([details](#run-it-on-google-cloud-cloud-run))*
 
-Where can you get by public transport in a given time? Mapnificently is a Python take on the
-original [Mapnificent](https://www.mapnificent.net/). Pick a city, click one or more start points
-on the map and drag the time slider. Everything you can reach by transit plus walking stays clear,
+Where can you get by public transport in a given time?
+
+Mapnificently is a Python take on the original [Mapnificent](https://www.mapnificent.net/),
+created by [Stefan Wehrmeyer (stefanw)](https://github.com/stefanw) 🤩
+
+Pick a city, click one or more start points on the map and drag the time slider.
+Everything you can reach by transit plus walking stays clear,
 and the rest of the map is greyed out.
 
 ![The reachable area growing minute by minute from Oslo S, Bergen stasjon and Trondheim S](docs/media/cities.gif)

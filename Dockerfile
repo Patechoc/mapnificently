@@ -6,9 +6,14 @@
 # Stage 1 installs the app and downloads + prepares the timetables. Stage 2 keeps only the
 # app and the prepared data (~35 MB), not the ~270 MB of downloaded feeds.
 
-FROM python:3.13-slim AS build
+# Images are pinned by digest (updated by Dependabot), so a rebuild uses exactly these CA
+# bundles: uv 0.13.5 and this Debian ca-certificates no longer trust the compromised
+# eMudhra intermediates (October 2026).
+FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
 
-COPY --from=ghcr.io/astral-sh/uv:0.10.7 /uv /bin/uv
+FROM python:3.13-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962 AS build
+
+COPY --from=uv /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy \
     UV_PYTHON_DOWNLOADS=never \
@@ -33,7 +38,7 @@ RUN for region in $(/app/.venv/bin/mapnificently data regions); do \
     && rm -rf /data/feeds
 
 
-FROM python:3.13-slim
+FROM python:3.13-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962
 
 RUN useradd --create-home --uid 10001 mapnificently
 COPY --from=build /app/.venv /app/.venv

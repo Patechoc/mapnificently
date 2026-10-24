@@ -10,6 +10,15 @@ updates:
       github-actions:
         patterns: ["*"]
 
+  # Base images and the uv binary in the Dockerfile, pinned by digest (OS CA certificates).
+  - package-ecosystem: "docker"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    groups:
+      docker-images:
+        patterns: ["*"]
+
   - package-ecosystem: "uv"
     directory: "/"
     schedule:

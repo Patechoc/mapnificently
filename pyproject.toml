@@ -25,6 +25,7 @@ dependencies = [
     "uvicorn[standard]>=0.29",
     "click>=8.1",
     "httpx>=0.27",
+    "certifi>=2026.10.19",  # httpx's CA bundle; earlier ones trust the compromised eMudhra CAs
     "polars>=1.0",
     "numpy>=1.26",
     "scipy>=1.12",       # KD-tree for footpaths and origin snapping

@@ -86,124 +86,19 @@ only the static site, which has no API.)
 
 [![Run on Google Cloud](https://deploy.cloud.run/button.svg)](https://deploy.cloud.run/?git_repo=https://github.com/Patechoc/mapnificently.git)
 
-The button opens Google Cloud Shell, builds this repository's `Dockerfile` and deploys it to
-Cloud Run **in your own Google Cloud project, billed to you** (a billing account is needed;
-a demo that sleeps when idle costs little). The image contains the prepared data of every
-configured region, so the app is ready as soon as it starts.
+The button builds this repository's `Dockerfile` and deploys it to Cloud Run **in your own
+Google Cloud project, billed to you** (a demo that sleeps when idle costs little). The image
+contains the prepared data of every configured region, so the app is ready as soon as it
+starts. A deployment keeps the image it was built with: deploy again to refresh the timetables
+or to pick up fixes.
 
-`app.json` sets what the deployment uses: 1 GiB of memory, at most 2 instances (a cap on
-costs), public access, and it asks for the name sent to Entur with address searches.
+**[docs/cloud-run.md](docs/cloud-run.md)** covers the rest:
 
-Good to know:
-
-- **Data is as fresh as the image.** It is downloaded while building and valid until the
-  feeds' end dates (`make data-status` shows them). Deploy again to refresh it.
-- **Refreshing over HTTP is off** in the image (`MAPNIFICENTLY_ALLOW_REFRESH=false`), so
-  nobody can make a public server re-download everything.
-- **Building needs about 1.5 GB of memory** (preparing Bergen is the peak). If the build in
-  Cloud Shell runs out, deploy without the button (below), which builds on Google's servers.
-- **Map tiles** come from OpenStreetMap's public server, whose policy does not allow heavy
-  traffic: switch the tile provider before sharing a deployment widely.
-- **Cold starts:** an idle instance is stopped; the first request after a pause loads a
-  city's data in about a second.
-
-### If the button fails
-
-**`Error 429: Quota exceeded … 'List available/disabled services requests per minute'`**
-while "enabling required APIs": a per-minute rate limit on Google's side, not a problem with
-the app or your project. Wait a minute and try again. If it keeps happening, check billing and
-enable the APIs yourself in Cloud Shell (replace `PROJECT_ID` with your project's id):
-
-```bash
-gcloud config set project PROJECT_ID
-gcloud billing projects describe PROJECT_ID   # must show: billingEnabled: true
-gcloud services enable run.googleapis.com artifactregistry.googleapis.com cloudbuild.googleapis.com
-```
-
-Then run the button again, or paste in Cloud Shell what the button runs. Do it from an empty
-folder: a clone left by an earlier attempt makes it fail with `fatal: destination path
-'mapnificently' already exists`.
-
-```bash
-mkdir -p ~/deploy-$(date +%s) && cd "$_"
-cloudshell_open --repo_url "https://github.com/Patechoc/mapnificently.git" --page "shell" --force_new_clone
-```
-
-**Deploy without the button.** This builds on Google's build servers (Cloud Build), so it
-also avoids Cloud Shell's memory limit:
-
-```bash
-git clone https://github.com/Patechoc/mapnificently.git && cd mapnificently
-gcloud run deploy mapnificently --source . --region europe-north1 \
-  --memory 1Gi --max-instances 2 --allow-unauthenticated
-```
-
-`europe-north1` (Finland) is the region closest to Norway; gcloud prints the app's address at
-the end.
-
-### After deploying: how long it runs, what it costs, removing it
-
-**It stays deployed until you delete it**; a Cloud Run service does not expire. When nobody
-uses it, it scales to zero and uses no compute; the next visitor wakes it in about a second.
-The timetables in it do expire, at the feeds' end dates (`make data-status` shows them): after
-that it still runs but finds no trips until you deploy again.
-
-**What it costs:**
-
-- **Idle:** nothing for compute.
-- **Light use:** within Cloud Run's free monthly allowances (2 million requests, 180,000
-  vCPU-seconds, 360,000 GiB-seconds per billing account).
-- **Storage:** a few cents a month at most. The built image (about 200 MB) is kept in
-  Artifact Registry, where 0.5 GiB is free; each deployment adds one. A deployment with
-  `--source` also keeps a small copy of the source in a Cloud Storage bucket.
-- **The real risk is traffic**, since the address is public. `app.json` and the commands
-  above cap it at 2 instances; a **budget alert** (Billing → Budgets & alerts, e.g. $5) tells
-  you if usage ever grows.
-
-**Your options** (in Cloud Shell; replace `europe-north1` if you deployed elsewhere):
-
-| Option | When | What to do |
-|---|---|---|
-| Keep it public | an occasional demo | nothing; set a budget alert |
-| Keep it, but private | only people with access to your project should open it | remove public access (below) |
-| Remove it | no longer needed: no costs at all | delete the service, its images and the source copies (below) |
-
-Make it private (only signed-in users with access to the project can open it); add the
-binding back with `add-iam-policy-binding` and the same flags to make it public again:
-
-```bash
-gcloud run services remove-iam-policy-binding mapnificently --region europe-north1 \
-  --member=allUsers --role=roles/run.invoker
-```
-
-Remove it completely:
-
-```bash
-# 1. The service (the app itself and its address)
-gcloud run services delete mapnificently --region europe-north1
-
-# 2. The stored images: find the repository, then delete it
-gcloud artifacts repositories list
-gcloud artifacts repositories delete cloud-run-source-deploy --location europe-north1   # `--source` deployments
-
-# 3. The source copies kept by `--source` deployments (bucket named run-sources-…)
-gcloud storage buckets list --format="value(name)" | grep run-sources
-gcloud storage rm --recursive gs://BUCKET_NAME
-```
-
-Deleting the whole Google Cloud project removes all of it at once.
-
-### Test the container locally
-
-```bash
-make docker-build     # the same image Cloud Run builds (~1 min, downloads the timetables)
-make docker-run       # http://127.0.0.1:8080
-make docker-test      # build, start and smoke-test: page, API, every city's data, a route
-make docker-shell     # a shell inside the image, e.g. to run `mapnificently data status`
-```
-
-The container listens on `$PORT` (8080 by default, as on Cloud Run), runs as a non-root user
-and keeps about 16 MB of prepared data; it uses about 160 MB of memory at rest.
+- running the `gcloud` commands in Cloud Shell (browser) or in your own terminal (WSL included)
+- deploying without the button, and what to do if the button fails
+- updating a running deployment
+- costs, making it private, removing it
+- testing the container locally (`make docker-test`)
 
 ## CLI
 

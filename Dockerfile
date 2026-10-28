@@ -9,7 +9,7 @@
 # Images are pinned by digest (updated by Dependabot), so a rebuild uses exactly these CA
 # bundles: uv 0.13.5 and this Debian ca-certificates no longer trust the compromised
 # eMudhra intermediates (October 2026).
-FROM ghcr.io/astral-sh/uv:0.13.5@sha256:32a7bb39b496babbd997b0a39a4d66c126bdaf5661b302bf6f06abda8deca6ff AS uv
+FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
 
 FROM python:3.13-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962 AS build
 

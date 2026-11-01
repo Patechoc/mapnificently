@@ -70,6 +70,7 @@ class TestRegistry:
         assert cities["moss"].region.id == cities["oslo"].region.id == "oslofjord"
         assert {"rut", "vyg", "ost", "flt"} <= set(cities["moss"].feeds)
         assert all(c.provider == "entur" for c in cities.values() if c.country == "NO")
+        assert cities["paris"].provider == "gtfs"
         assert all(c.country for c in cities.values())
 
     def test_user_file_overrides_and_extends(self, tmp_path: Path):

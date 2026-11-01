@@ -80,6 +80,7 @@ class TestConfig:
         cities = load_cities(env)
         assert cities["testville"].country == "NO"  # written "no": upper-cased
         assert cities["otherville"].country is None  # optional
+        assert cities["paris"].country == "FR"
 
     def test_country_must_be_a_two_letter_code(self, tmp_path: Path):
         user = tmp_path / "c.toml"

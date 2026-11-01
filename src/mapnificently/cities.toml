@@ -72,6 +72,28 @@ country = "NO"
 region = "trondheim"
 center = [63.4305, 10.3951]
 
+# ---------------------------------------------------------------------------- Paris
+# Île-de-France Mobilités (metro, RER, Transilien, tram, buses) plus SNCF's national trains
+# (TGV, Intercités, TER), so trips reach Rouen, Chartres, Orléans, Reims or Amiens. Outside
+# Île-de-France only the trains are known. TER trips inside Île-de-France are in both feeds;
+# that only adds duplicate connections. The IDFM feed covers about three weeks: refresh weekly.
+[regions.paris]
+name = "Paris and Île-de-France"
+timezone = "Europe/Paris"
+bbox = [0.90, 47.80, 4.20, 49.95]
+provider = "gtfs"
+feeds = [
+    "https://eu.ftp.opendatasoft.com/stif/GTFS/IDFM-gtfs.zip",
+    "https://eu.ftp.opendatasoft.com/sncf/plandata/Export_OpenData_SNCF_GTFS_NewTripId.zip",
+]
+attribution = "Timetables: Île-de-France Mobilités / SNCF Voyageurs (ODbL)"
+
+[cities.paris]
+name = "Paris"
+country = "FR"
+region = "paris"
+center = [48.8566, 2.3522]
+
 # A non-Norwegian example, using a plain GTFS URL (a city that is its own region):
 #
 # [cities.helsinki]

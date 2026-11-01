@@ -67,6 +67,10 @@ def _latlon(value: object) -> object:
     return value
 
 
+def _upper(value: object) -> object:
+    return value.upper() if isinstance(value, str) else value
+
+
 def _bbox(value: object) -> object:
     if isinstance(value, list | tuple):
         return BBox.from_list(list(value))
@@ -74,6 +78,7 @@ def _bbox(value: object) -> object:
 
 
 RegionId = Annotated[str, Field(pattern=r"^[a-z0-9_-]+$")]
+CountryCode = Annotated[str, Field(pattern=r"^[A-Z]{2}$", description="ISO 3166-1 alpha-2.")]
 REGION_FIELDS = ("timezone", "bbox", "provider", "feeds", "attribution")
 
 
@@ -118,12 +123,15 @@ class CityConfig(BaseModel):
     Either name a ``region``, or give the region fields (``timezone``, ``bbox``, ``provider``,
     ``feeds``, ``attribution``) directly: the city then is a region of its own.
     The region fields are always filled in, copied from the region.
+
+    ``country`` belongs to the city, not the region: a region may cross a border.
     """
 
     model_config = ConfigDict(frozen=True)
 
     id: RegionId
     name: str
+    country: CountryCode | None = None
     timezone: str
     center: LatLon
     bbox: BBox
@@ -133,6 +141,7 @@ class CityConfig(BaseModel):
     region: RegionConfig
 
     _check_timezone = field_validator("timezone")(_timezone)
+    _country_upper = field_validator("country", mode="before")(_upper)
     _center_from_list = field_validator("center", mode="before")(_latlon)
     _bbox_from_list = field_validator("bbox", mode="before")(_bbox)
 

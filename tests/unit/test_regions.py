@@ -31,6 +31,7 @@ feeds = ["{feed1}", "{feed2}"]
 
 [cities.testville]
 name = "Testville"
+country = "no"
 region = "valley"
 center = [59.91, 10.75]
 
@@ -74,6 +75,20 @@ class TestConfig:
         assert cities["testville"].feeds == cities["otherville"].feeds
         assert cities["solo"].region.id == "solo"  # its own region
         assert cities["moss"].region.id == cities["oslo"].region.id == "oslofjord"
+
+    def test_country_is_per_city(self, env: Settings):
+        cities = load_cities(env)
+        assert cities["testville"].country == "NO"  # written "no": upper-cased
+        assert cities["otherville"].country is None  # optional
+
+    def test_country_must_be_a_two_letter_code(self, tmp_path: Path):
+        user = tmp_path / "c.toml"
+        user.write_text(
+            '[cities.x]\nname = "X"\ncountry = "Norway"\n'
+            'region = "oslofjord"\ncenter = [59.9, 10.7]\n'
+        )
+        with pytest.raises(ValueError, match="country"):
+            load_cities(Settings(cities_file=user))
 
     def test_unknown_region(self, tmp_path: Path):
         user = tmp_path / "c.toml"
@@ -121,6 +136,8 @@ class TestSharing:
         assert cities["otherville"]["region"] == "valley"
         assert cities["otherville"]["region_name"] == "Valley"
         assert cities["otherville"]["data_ready"] is True
+        assert cities["testville"]["country"] == "NO"
+        assert cities["otherville"]["country"] is None
         assert cities["solo"]["data_ready"] is False
 
     def test_static_export_writes_a_region_once(self, env: Settings, tmp_path: Path):
@@ -130,6 +147,10 @@ class TestSharing:
         summary = export_static_site(store, ["testville", "otherville"], [], out)
         assert list(summary["regions"]) == ["valley"]
         manifest = json.loads((out / "data" / "manifest.json").read_text())
+        assert {c["id"]: c["country"] for c in manifest["cities"]} == {
+            "testville": "NO",
+            "otherville": None,
+        }
         files = {c["id"]: c["files"]["network"] for c in manifest["cities"]}
         assert files == {
             "testville": "data/valley/network.bin",

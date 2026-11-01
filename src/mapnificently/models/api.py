@@ -160,6 +160,7 @@ class CityInfo(BaseModel):
 
     id: str
     name: str
+    country: str | None = Field(default=None, description="ISO 3166-1 alpha-2 code.")
     timezone: str
     center: LatLon
     bbox: BBox

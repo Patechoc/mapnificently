@@ -13,6 +13,9 @@
 #             "gtfs":  feeds are plain GTFS zip URLs (or local paths / file:// URLs)
 #   bbox      [lon_min, lat_min, lon_max, lat_max]; stops outside are dropped
 #   center    [lat, lon]
+#   country   ISO 3166-1 alpha-2 code of the city, e.g. "NO"; the web map filters cities by it.
+#             It is set on cities, not regions: a region may cross a border, and its cities then
+#             reach each other whatever their country.
 
 # ---------------------------------------------------------------------------- Oslofjord
 # Oslo, Akershus, Østfold, Buskerud (Drammen) and Vestfold (Horten, Tønsberg), up to
@@ -29,11 +32,13 @@ attribution = "Timetables: Entur AS / Ruter / Vy / Østfold kollektivtrafikk / F
 
 [cities.oslo]
 name = "Oslo"
+country = "NO"
 region = "oslofjord"
 center = [59.9111, 10.7528]
 
 [cities.moss]
 name = "Moss"
+country = "NO"
 region = "oslofjord"
 center = [59.4340, 10.6590]
 
@@ -48,6 +53,7 @@ attribution = "Timetables: Entur AS / Skyss / Vy (NLOD)"
 
 [cities.bergen]
 name = "Bergen"
+country = "NO"
 region = "bergen"
 center = [60.3913, 5.3221]
 
@@ -62,6 +68,7 @@ attribution = "Timetables: Entur AS / AtB / SJ Nord (NLOD)"
 
 [cities.trondheim]
 name = "Trondheim"
+country = "NO"
 region = "trondheim"
 center = [63.4305, 10.3951]
 
@@ -69,6 +76,7 @@ center = [63.4305, 10.3951]
 #
 # [cities.helsinki]
 # name = "Helsinki"
+# country = "FI"
 # timezone = "Europe/Helsinki"
 # center = [60.1699, 24.9384]
 # bbox = [24.50, 60.05, 25.30, 60.40]

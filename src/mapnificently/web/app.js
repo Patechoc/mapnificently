@@ -649,11 +649,64 @@ function limitDates(dates) {
   }
 }
 
+// The country menu only narrows the city list. What a city reaches depends on its region, and
+// a region may cross a border, so a city can still reach places in another country.
+const ALL_COUNTRIES = "";
+const NO_COUNTRY = "-";
+
+const countryOf = (city) => city.country || NO_COUNTRY;
+
+function countryName(code) {
+  if (code === NO_COUNTRY) return "Other";
+  try {
+    return new Intl.DisplayNames([navigator.language, "en"], { type: "region" }).of(code) || code;
+  } catch {
+    return code;
+  }
+}
+
+// The country menu appears once cities come from more than one country.
+function fillCountries() {
+  const codes = [...new Set(state.cities.map(countryOf))];
+  const named = codes.map((code) => [code, countryName(code)]);
+  named.sort(([a, x], [b, y]) => (a === NO_COUNTRY) - (b === NO_COUNTRY) || x.localeCompare(y));
+  const select = $("country");
+  select.replaceChildren(new Option("All countries", ALL_COUNTRIES));
+  for (const [code, name] of named) select.append(new Option(name, code));
+  $("country-field").hidden = codes.length < 2;
+}
+
+function fillCities(country) {
+  const select = $("city");
+  select.replaceChildren();
+  for (const city of state.cities) {
+    if (country !== ALL_COUNTRIES && countryOf(city) !== country) continue;
+    select.append(new Option(city.data_ready ? city.name : `${city.name} (no data yet)`, city.id));
+  }
+  if (state.city) select.value = state.city.id; // keeps the current city if it is listed
+}
+
+async function selectCountry(country) {
+  fillCities(country);
+  if (state.city && $("city").value === state.city.id) return; // still listed: keep it
+  const listed = state.cities.filter((c) => country === ALL_COUNTRIES || countryOf(c) === country);
+  const city = listed.find((c) => c.data_ready) || listed[0];
+  if (!city) return;
+  await selectCity(city.id);
+  compute();
+}
+
 async function selectCity(id, { fitView = true } = {}) {
   const city = state.cities.find((c) => c.id === id) || state.cities[0];
   if (!city) return;
   state.city = city;
   state.stops = null;
+  // A city from the URL may be in another country than the one picked: follow it.
+  const country = $("country").value;
+  if (country !== ALL_COUNTRIES && country !== countryOf(city)) {
+    $("country").value = countryOf(city);
+    fillCities(countryOf(city));
+  }
   $("city").value = city.id;
   $("attribution").textContent = city.attribution;
   if (city.dates) limitDates(city.dates);
@@ -791,6 +844,7 @@ $("show-stops").addEventListener("change", renderStops);
 for (const radio of document.querySelectorAll("input[name=mode]")) {
   radio.addEventListener("change", () => { redraw(); renderRoute(); });
 }
+$("country").addEventListener("change", () => selectCountry($("country").value));
 $("city").addEventListener("change", async () => { await selectCity($("city").value); compute(); });
 $("search").addEventListener("input", runSearch);
 $("search").addEventListener("blur", hideResults);
@@ -841,14 +895,14 @@ async function init() {
     setStatus(`Cannot load cities: ${err.message}`, true);
     return;
   }
-  const select = $("city");
-  for (const city of state.cities) {
-    const option = document.createElement("option");
-    option.value = city.id;
-    option.textContent = city.data_ready ? city.name : `${city.name} (no data yet)`;
-    select.append(option);
-  }
+  fillCountries();
+  fillCities(ALL_COUNTRIES);
   const preferred = hash.city || (state.cities.find((c) => c.data_ready) || state.cities[0] || {}).id;
+  const start = state.cities.find((c) => c.id === preferred);
+  if (start && !$("country-field").hidden) {
+    $("country").value = countryOf(start);
+    fillCities(countryOf(start));
+  }
   await selectCity(preferred, { fitView: true });
   for (const [lat, lon] of hash.origins) addOrigin(lat, lon, null, { recompute: false });
   if (hash.origins.length) map.panTo(hash.origins[0]);

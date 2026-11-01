@@ -221,38 +221,14 @@ make data-clean CITY=bergen        # remove one region and the feeds only it use
 
 ### Adding a city or region
 
-A city in an existing region is three lines in `src/mapnificently/cities.toml`, or in your own
-file pointed to by `MAPNIFICENTLY_CITIES_FILE` (blocks with the same id override the packaged
-ones, regions included):
+Most places need no code: a few lines in
+[`src/mapnificently/cities.toml`](src/mapnificently/cities.toml) (or in your own file, pointed
+to by `MAPNIFICENTLY_CITIES_FILE`) that point to the timetables the transport authority already
+publishes as GTFS.
 
-```toml
-[cities.drammen]
-name = "Drammen"
-region = "oslofjord"
-center = [59.7439, 10.2045]               # lat, lon: where the map opens
-```
-
-A new area is a region (operators and area) plus its cities:
-
-```toml
-[regions.helsinki]
-name = "Helsinki"
-timezone = "Europe/Helsinki"
-bbox = [24.50, 60.05, 25.30, 60.40]       # lon_min, lat_min, lon_max, lat_max; stops outside are dropped
-provider = "gtfs"                         # plain GTFS URLs (or local paths)
-feeds = ["https://infopalvelut.storage.hsldev.com/gtfs/hsl.zip"]
-attribution = "Timetables: HSL (CC BY 4.0)"
-
-[cities.helsinki]
-name = "Helsinki"
-region = "helsinki"
-center = [60.1699, 24.9384]
-```
-
-A city may also give the region fields itself (no `region`): it is then a region of its own.
-For Norway use `provider = "entur"` with Entur codespaces as feeds, e.g. `rut` (Ruter), `vyg`
-(Vy trains), `ost` (Østfold), `bra` (Brakar), `vkt` (Vestfold og Telemark), `flt` (Flytoget),
-`sky` (Skyss), `atb` (AtB). Stops shared between feeds (Entur's national ids) are merged.
+**[docs/adding-a-city.md](docs/adding-a-city.md)** walks you through it step by step, with Paris
+as the worked example: finding a country's timetables, checking them, drawing the region,
+writing the configuration, testing the results and keeping them up to date.
 
 ## Adding a provider
 

@@ -393,4 +393,6 @@ Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.
 The code is MIT-licensed and was written with AI assistance from Claude Opus 5.5 by Anthropic
 (model id `claude-opus-5-5`), used through Claude Code.
 Timetables: © Entur AS and the transport operators, under the
-[NLOD](https://data.norge.no/nlod/en/2.0) licence. Map tiles: © OpenStreetMap contributors.
+[NLOD](https://data.norge.no/nlod/en/2.0) licence; Île-de-France Mobilités and SNCF Voyageurs,
+under the [ODbL](https://opendatacommons.org/licenses/odbl/). Map tiles: © OpenStreetMap
+contributors.

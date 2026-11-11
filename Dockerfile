@@ -9,9 +9,9 @@
 # Images are pinned by digest (updated by Dependabot), so a rebuild uses exactly these CA
 # bundles: uv 0.13.5 and this Debian ca-certificates no longer trust the compromised
 # eMudhra intermediates (October 2026).
-FROM ghcr.io/astral-sh/uv:0.13.6@sha256:af22a52f5eafef3d78e551599d405c02df61919d18028f0cea8eda93bc9986d0 AS uv
+FROM ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490 AS uv
 
-FROM python:3.13-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962 AS build
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928 AS build
 
 COPY --from=uv /uv /bin/uv
 ENV UV_COMPILE_BYTECODE=1 \
@@ -38,7 +38,7 @@ RUN for region in $(/app/.venv/bin/mapnificently data regions); do \
     && rm -rf /data/feeds
 
 
-FROM python:3.13-slim@sha256:d98cc29d3266e535dd9da1099688d9cb3ca4753813571e071763d17725460962
+FROM python:3.15-slim@sha256:65a65fc7b30b06cb6df4930fd4650697cb23f4c2698ab81fc87e4b031bc36928
 
 RUN useradd --create-home --uid 10001 mapnificently
 COPY --from=build /app/.venv /app/.venv

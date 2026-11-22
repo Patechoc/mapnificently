@@ -362,9 +362,16 @@ because frames share one palette and only store the pixels that changed.
 | Integration | the tests on real Entur data: weekly and on demand (Actions → CI → Run workflow) |
 | Docker | builds the image and smoke-tests it (`make docker-test`): on `main`, weekly and on demand |
 
-Dependabot (`.github/dependabot.yml`) opens weekly PRs when GitHub Actions or the Python
-dependencies in `uv.lock` have new versions (minor and patch updates grouped, major updates
-separately); the CI checks each of them.
+Dependabot (`.github/dependabot.yml`) opens weekly PRs when GitHub Actions, the Docker base
+images or the Python dependencies in `uv.lock` have new versions (minor and patch updates
+grouped, major updates separately); the CI checks each of them. Minor and patch updates of
+actions and Python packages merge themselves once the checks pass
+(`.github/workflows/dependabot-auto-merge.yml`), and only for releases at least 7 days old.
+Major updates and Docker image updates wait for a person: the image is only built on `main`.
+
+`main` only accepts commits whose checks passed (the "main protected" ruleset requires Quality,
+Security and the three Tests jobs), so changes go through pull requests. Rename a required job,
+or add a Python version to the test matrix, and the ruleset must be updated too.
 
 Set the repository variable `ENTUR_CLIENT_NAME` (Settings → Secrets and variables → Actions →
 Variables) to identify the CI to Entur; it defaults to `mapnificently-ci`.

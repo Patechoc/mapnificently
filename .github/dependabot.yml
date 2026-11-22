@@ -1,11 +1,18 @@
 # Weekly update PRs, so pinned versions do not go stale (e.g. setup-uv is pinned to an exact
 # release because it publishes no floating major tag). CI checks every update PR.
+#
+# Minor and patch updates of actions and Python packages merge themselves once CI passes
+# (.github/workflows/dependabot-auto-merge.yml). Their cooldown makes Dependabot wait until a
+# release is 7 days old, so a hijacked release is usually withdrawn before it is proposed.
+# Security updates ignore the cooldown.
 version: 2
 updates:
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       github-actions:
         patterns: ["*"]
@@ -23,6 +30,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
     groups:
       # Minor and patch updates in one PR; major updates get their own, as they may break.
       python-dependencies:

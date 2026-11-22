@@ -64,12 +64,14 @@ function setStatus(text, isError = false) {
 
 function pad(n) { return String(n).padStart(2, "0"); }
 
+function isoDate(d) { return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`; }
+
 function defaultDate() {
   // Next weekday, so the first view shows a normal commuting timetable.
   const d = new Date();
   if (d.getDay() === 6) d.setDate(d.getDate() + 2);
   if (d.getDay() === 0) d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  return isoDate(d);
 }
 
 function minutes() { return Number($("minutes").value); }
@@ -881,7 +883,10 @@ async function init() {
   $("date").value = defaultDate();
   $("time").value = "08:00";
   if (hash.at && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(hash.at)) {
-    [$("date").value, $("time").value] = hash.at.split("T");
+    const [day, time] = hash.at.split("T");
+    // Timetables drop past days, so an old link keeps its time but not its date.
+    if (day >= isoDate(new Date())) $("date").value = day;
+    $("time").value = time;
   }
   if (hash.minutes) $("minutes").value = hash.minutes;
   setSelect("walk", hash.walk);

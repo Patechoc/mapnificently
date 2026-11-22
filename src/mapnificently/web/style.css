@@ -3,6 +3,7 @@
   --panel-fg: #1d2330;
   --muted: #5d6677;
   --accent: #1f6feb;
+  --on-accent: #ffffff;
   --accent-soft: #e7f0ff;
   --border: #d9dee7;
   --danger: #c62828;
@@ -16,6 +17,7 @@
     --panel-fg: #e6e9ef;
     --muted: #9aa3b2;
     --accent: #58a6ff;
+    --on-accent: #0b1220;
     --accent-soft: #1d2a3f;
     --border: #2d3442;
     --danger: #ff6b6b;
@@ -59,8 +61,8 @@ html, body {
   justify-content: space-between;
   padding: 12px 16px 4px;
 }
-#panel h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
-#collapse {
+#panel h1 { flex: 1; margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+.icon-button {
   border: 0;
   background: transparent;
   color: var(--muted);
@@ -70,7 +72,8 @@ html, body {
   height: 32px;
   border-radius: 6px;
 }
-#collapse:hover { background: var(--accent-soft); }
+.icon-button:hover { background: var(--accent-soft); }
+#help { font-size: 16px; font-weight: 700; }
 #panel.collapsed #panel-body, #panel.collapsed footer { display: none; }
 
 #panel-time { padding: 4px 16px 0; }
@@ -231,3 +234,38 @@ footer a { color: var(--accent); }
 .route-popup .dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; }
 
 #edition { width: 100%; font-weight: 600; color: var(--panel-fg); }
+
+/* Welcome dialog: how to use the map (shown on load until "Don't show this again") */
+#welcome {
+  width: min(440px, calc(100vw - 32px));
+  max-height: calc(100vh - 32px);
+  padding: 0;
+  border: 0;
+  border-radius: 12px;
+  background: var(--panel-bg);
+  color: var(--panel-fg);
+  box-shadow: var(--shadow);
+  overflow-y: auto;
+}
+#welcome::backdrop { background: var(--veil); }
+#welcome > form { padding: 20px 22px 18px; } /* padding inside the form: a click on the dialog itself is the backdrop */
+#welcome h2 { margin: 0 0 6px; font-size: 20px; letter-spacing: -0.01em; }
+.welcome-lead { margin: 0 0 12px; color: var(--muted); }
+.welcome-steps { margin: 0 0 12px; padding-left: 20px; }
+.welcome-steps li { margin-bottom: 6px; }
+.welcome-steps li::marker { color: var(--accent); font-weight: 700; }
+.welcome-tip { margin: 0 0 16px; padding: 8px 10px; border-radius: 8px; background: var(--accent-soft); font-size: 13px; }
+.welcome-actions { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.welcome-actions .check { margin: 0; color: var(--muted); }
+button.primary {
+  font: inherit;
+  font-weight: 600;
+  padding: 8px 16px;
+  border: 0;
+  border-radius: 8px;
+  background: var(--accent);
+  color: var(--on-accent);
+  cursor: pointer;
+}
+button.primary:hover { filter: brightness(1.08); }
+button.primary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }

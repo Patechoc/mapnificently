@@ -870,6 +870,25 @@ function setCollapsed(collapsed) {
 $("collapse").addEventListener("click", () => setCollapsed(!$("panel").classList.contains("collapsed")));
 try { if (localStorage.getItem("panelCollapsed") === "1") setCollapsed(true); } catch { /* storage blocked */ }
 
+// Welcome dialog: how to use the map. Shown on load until "Don't show this again" is ticked
+// (saved as soon as it changes); the ? button in the panel opens it again. It closes with its
+// button, Escape or a click beside it.
+const WELCOME_KEY = "welcomeHidden";
+const welcome = $("welcome");
+function showWelcome() {
+  if (welcome.open || typeof welcome.showModal !== "function") return;
+  try { $("welcome-hide").checked = localStorage.getItem(WELCOME_KEY) === "1"; } catch { /* storage blocked */ }
+  welcome.showModal();
+}
+$("welcome-hide").addEventListener("change", (e) => {
+  try { localStorage.setItem(WELCOME_KEY, e.target.checked ? "1" : "0"); } catch { /* storage blocked */ }
+});
+welcome.addEventListener("click", (e) => { if (e.target === welcome) welcome.close(); }); // the backdrop
+$("help").addEventListener("click", showWelcome);
+let welcomeHidden = false;
+try { welcomeHidden = localStorage.getItem(WELCOME_KEY) === "1"; } catch { /* storage blocked */ }
+if (!welcomeHidden) showWelcome();
+
 async function init() {
   const hash = readHash();
   if (OFFLINE) {

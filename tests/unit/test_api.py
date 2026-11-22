@@ -121,6 +121,17 @@ def test_notice_before_the_feeds_were_published(client: TestClient, store: CityD
     assert fc["features"][0]["properties"]["notice"] == notice
 
 
+def test_web_files_are_revalidated(client: TestClient):
+    # After a deploy, browsers must not keep running an old app.js with the new page.
+    for path in ("/", "/static/app.js", "/static/style.css"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert response.headers["cache-control"] == "no-cache"
+    etag = client.get("/static/app.js").headers["etag"]
+    assert client.get("/static/app.js", headers={"If-None-Match": etag}).status_code == 304
+    assert "cache-control" not in client.get("/api/config").headers
+
+
 def test_isochrone_union_and_intersection(client: TestClient):
     def area(mode: str) -> float:
         fc = client.post(

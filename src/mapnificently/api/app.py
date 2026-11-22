@@ -45,6 +45,16 @@ def create_app(settings: Settings | None = None, store: CityDataStore | None = N
     )
     app.state.store = store
 
+    @app.middleware("http")
+    async def revalidate_web_files(request: Request, call_next: Any) -> Any:
+        # Browsers may reuse files without a Cache-Control header for days, so after a deploy
+        # the new page could run with an old app.js. "no-cache" keeps their copy but makes them
+        # check it first (a cheap 304 when unchanged).
+        response = await call_next(request)
+        if request.url.path == "/" or request.url.path.startswith("/static/"):
+            response.headers.setdefault("Cache-Control", "no-cache")
+        return response
+
     def get_store(request: Request) -> CityDataStore:
         result: CityDataStore = request.app.state.store
         return result

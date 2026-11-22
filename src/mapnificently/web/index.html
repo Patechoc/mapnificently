@@ -13,7 +13,9 @@
   <aside id="panel">
     <header>
       <h1>Mapnificently</h1>
-      <button id="collapse" type="button" aria-label="Hide settings" title="Hide settings"
+      <button id="help" class="icon-button" type="button" aria-label="How it works"
+              title="How it works" aria-haspopup="dialog" aria-controls="welcome">?</button>
+      <button id="collapse" class="icon-button" type="button" aria-label="Hide settings" title="Hide settings"
               aria-expanded="true" aria-controls="panel-body">–</button>
     </header>
     <div id="panel-time">
@@ -106,6 +108,28 @@
       <a id="api-docs" href="docs" target="_blank" rel="noopener">API docs</a>
     </footer>
   </aside>
+
+  <dialog id="welcome" aria-labelledby="welcome-title">
+    <form method="dialog">
+      <h2 id="welcome-title">How far can you go?</h2>
+      <p class="welcome-lead">Mapnificently shows everywhere you can reach by public transport and
+        on foot within a given number of minutes.</p>
+      <ol class="welcome-steps">
+        <li><strong>Click the map</strong> (or search an address) to set your start point.</li>
+        <li><strong>Drag the time slider</strong>: the bright area shows where you can be in that many
+          minutes, the darker map where you cannot.</li>
+        <li><strong>Pick the date and departure time</strong> you have in mind: timetables change
+          through the day and the week.</li>
+      </ol>
+      <p class="welcome-tip">Add several start points to compare where each of you can get, or to find
+        where everyone can meet. For the fastest journey to a place, switch to “Shows the route”
+        and click it.</p>
+      <div class="welcome-actions">
+        <label class="check"><input id="welcome-hide" type="checkbox"> Don’t show this again</label>
+        <button type="submit" class="primary" autofocus>Start exploring</button>
+      </div>
+    </form>
+  </dialog>
 
   <script src="static/vendor/leaflet/leaflet.min.js"></script>
   <script src="static/app.js"></script>

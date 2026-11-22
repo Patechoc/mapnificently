@@ -375,7 +375,9 @@ async function compute() {
       }
     });
     state.detour = result.walk_detour;
-    setStatus(`Computed in ${Math.round(result.computation_ms)} ms for departure ${result.departure.slice(0, 16).replace("T", " ")}.`);
+    const computed = `Computed in ${Math.round(result.computation_ms)} ms for departure ${result.departure.slice(0, 16).replace("T", " ")}.`;
+    // The server explains a date the timetables do not cover (the map then shows walking only).
+    setStatus(result.notice ? `${computed} ${result.notice}` : computed, Boolean(result.notice));
   } catch (err) {
     if (seq === state.requestSeq) setStatus(err.message, true);
   }

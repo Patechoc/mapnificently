@@ -94,6 +94,11 @@ class Timetable:
         """Number of connections."""
         return len(self.dep_s)
 
+    @property
+    def num_departures(self) -> int:
+        """Connections leaving during the service day itself (not the night before or after)."""
+        return int(np.count_nonzero((self.dep_s >= 0) & (self.dep_s < DAY_S)))
+
 
 @dataclass
 class TripInfo:

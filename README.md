@@ -307,6 +307,11 @@ Settings are read from environment variables or a `.env` file:
 ## Known limitations
 
 - **Timetables only.** Real-time delays and cancellations are ignored.
+- **Dates from the download on.** Feeds such as Entur's drop past days, so a date before the
+  timetables were downloaded (or after they end) reaches few places. The map warns in its status
+  line (the `notice` of `/reach`, `/route` and `/isochrone`), and a shared link from the past
+  opens on the next weekday instead of its own date. Refresh the data, or redeploy the Docker
+  image, to move the window forward.
 - **No ferry to Horten from Moss.** The Moss–Horten ferry is not in the `ost` or `vyg` feeds.
 - **One change time for every stop.** The minimum change time is the same everywhere; a
   feed's own `transfers.txt` is not used.

@@ -10,6 +10,7 @@ Methods take a city id (what the API and CLI are given) and work on its region.
 import threading
 from collections import OrderedDict
 from datetime import date
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Any
 
@@ -110,6 +111,24 @@ class CityDataStore:
         """Metadata of the prepared data."""
         self._require_ready(city_id)
         return read_meta(self.prepared_dir(city_id))
+
+    def covered_dates(self, city_id: str) -> tuple[date | None, date | None]:
+        """First and last day the prepared timetables are complete for (``None``: unknown).
+
+        Feeds such as Entur's drop the days before they are published, even though their
+        calendars still start earlier. So a day is complete from the latest publication date
+        among the feeds (feeds without one, such as local files, are trusted) and from
+        ``service_start``, until ``service_end``.
+        """
+        meta = self.meta(city_id)
+        firsts = [date.fromisoformat(meta["service_start"])] if meta.get("service_start") else []
+        for feed in meta.get("feeds", []):
+            try:
+                firsts.append(parsedate_to_datetime(feed["last_modified"]).date())
+            except (KeyError, TypeError, ValueError):
+                continue  # no or unreadable publication date
+        last = meta.get("service_end")
+        return (max(firsts) if firsts else None, date.fromisoformat(last) if last else None)
 
     def refresh(self, city_id: str, *, force: bool = False) -> dict[str, object]:
         """Download and prepare the city's region (for every city of that region)."""

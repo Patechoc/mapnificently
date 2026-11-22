@@ -26,6 +26,11 @@ DEFAULT_WALK_SPEED_MPS = 1.25  # 4.5 km/h
 DEFAULT_MAX_WALK_M = 1000.0
 DEFAULT_MIN_CHANGE_MIN = 2
 
+NOTICE_DESCRIPTION = (
+    "Set when the date is outside the days the timetables cover, or has no departures: "
+    "then few or no places are reachable by transit."
+)
+
 
 class TripRequest(BaseModel):
     """What every reachability query has in common."""
@@ -83,6 +88,7 @@ class ReachResponse(BaseModel):
     min_change_min: int
     walk_detour: float = Field(description="Walking distance / straight-line distance.")
     origins: list[OriginReach]
+    notice: str | None = Field(default=None, description=NOTICE_DESCRIPTION)
     computation_ms: float
 
 
@@ -126,6 +132,7 @@ class RouteResponse(BaseModel):
     everyone_s: int | None = Field(
         description="When all origins have arrived; null if one cannot get there."
     )
+    notice: str | None = Field(default=None, description=NOTICE_DESCRIPTION)
     computation_ms: float
 
 

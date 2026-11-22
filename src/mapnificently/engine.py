@@ -27,7 +27,13 @@ from mapnificently.routing import (
     route_mode,
     scan,
 )
-from mapnificently.timetable import WALK_DETOUR, CityDataStore, StopNetwork, TripInfo
+from mapnificently.timetable import (
+    WALK_DETOUR,
+    CityDataStore,
+    StopNetwork,
+    Timetable,
+    TripInfo,
+)
 
 
 def local_departure(city: CityConfig, departure: datetime | None) -> datetime:
@@ -39,9 +45,32 @@ def local_departure(city: CityConfig, departure: datetime | None) -> datetime:
     return departure.astimezone(city.tz)
 
 
+def date_notice(
+    service_date: date, first: date | None, last: date | None, num_departures: int
+) -> str | None:
+    """Why few places may be reachable on ``service_date``, or ``None`` if the day looks fine.
+
+    ``first`` and ``last`` are the days the timetables are complete for (``None``: unknown).
+    """
+    if (first and service_date < first) or (last and service_date > last):
+        covered = f"{first or '…'} to {last or '…'}"
+        return (
+            f"The timetables cover {covered}, not {service_date}: few or no departures, "
+            "so the map shows mostly walking. Pick a date in that range."
+        )
+    if num_departures == 0:
+        return f"No departures on {service_date} in the timetables: the map shows walking only."
+    return None
+
+
+def _notice(store: CityDataStore, city: CityConfig, timetable: Timetable) -> str | None:
+    first, last = store.covered_dates(city.id)
+    return date_notice(timetable.service_date, first, last, timetable.num_departures)
+
+
 def _origin_reaches(
     store: CityDataStore, city: CityConfig, request: TripRequest, max_minutes: int
-) -> tuple[datetime, list[OriginReach]]:
+) -> tuple[datetime, list[OriginReach], str | None]:
     departure = local_departure(city, request.departure)
     network = store.network(city.id)
     timetable = store.timetable(city.id, departure.date())
@@ -70,13 +99,13 @@ def _origin_reaches(
                 arrival_s=[t - t_start for _, t in ordered],
             )
         )
-    return departure, reaches
+    return departure, reaches, _notice(store, city, timetable)
 
 
 def reach(store: CityDataStore, city: CityConfig, request: ReachRequest) -> ReachResponse:
     """Earliest arrival at every stop reachable within ``request.max_minutes``."""
     started = clock.perf_counter()
-    departure, reaches = _origin_reaches(store, city, request, request.max_minutes)
+    departure, reaches, notice = _origin_reaches(store, city, request, request.max_minutes)
     return ReachResponse(
         city=city.id,
         departure=departure,
@@ -87,6 +116,7 @@ def reach(store: CityDataStore, city: CityConfig, request: ReachRequest) -> Reac
         min_change_min=request.min_change_min,
         walk_detour=WALK_DETOUR,
         origins=reaches,
+        notice=notice,
         computation_ms=round((clock.perf_counter() - started) * 1000, 1),
     )
 
@@ -94,7 +124,7 @@ def reach(store: CityDataStore, city: CityConfig, request: ReachRequest) -> Reac
 def isochrone(store: CityDataStore, city: CityConfig, request: IsochroneRequest) -> dict[str, Any]:
     """GeoJSON FeatureCollection of the area reachable within ``request.minutes``."""
     started = clock.perf_counter()
-    departure, reaches = _origin_reaches(store, city, request, request.minutes)
+    departure, reaches, notice = _origin_reaches(store, city, request, request.minutes)
     network = store.network(city.id)
     areas = [
         reach_polygon(
@@ -120,6 +150,7 @@ def isochrone(store: CityDataStore, city: CityConfig, request: IsochroneRequest)
         "max_walk_m": request.max_walk_m,
         "min_change_min": request.min_change_min,
         "area_km2": round(area.area / 1e6, 3),
+        "notice": notice,
         "computation_ms": round((clock.perf_counter() - started) * 1000, 1),
     }
     return to_feature_collection(network.projection, area, properties)
@@ -246,5 +277,6 @@ def route(store: CityDataStore, city: CityConfig, request: RouteRequest) -> Rout
         journeys=journeys,
         fastest_s=min(durations) if durations else None,
         everyone_s=max(durations) if len(durations) == len(journeys) else None,
+        notice=_notice(store, city, timetable),
         computation_ms=round((clock.perf_counter() - started) * 1000, 1),
     )

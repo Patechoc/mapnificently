@@ -1,5 +1,7 @@
 """HTTP API."""
 
+import json
+
 import httpx
 from fastapi.testclient import TestClient
 from shapely.geometry import shape
@@ -71,6 +73,52 @@ def test_reach(client: TestClient):
     assert from_a[stops["ids"].index("D")] == 1200
     assert body["origins"][0]["arrival_s"] == sorted(body["origins"][0]["arrival_s"])
     assert len(body["origins"]) == 2
+
+
+def _notice(client: TestClient, departure: str) -> str | None:
+    body = client.post(
+        "/api/cities/testville/reach", json={"origins": [A], "departure": departure}
+    ).json()
+    notice: str | None = body["notice"]
+    return notice
+
+
+def test_no_notice_on_a_day_with_service(client: TestClient):
+    assert _notice(client, "2026-10-22T08:00") is None
+
+
+def test_notice_after_the_timetables_end(client: TestClient):
+    notice = _notice(client, "2027-01-05T08:00")
+    assert notice is not None
+    assert "2026-01-01 to 2026-12-31" in notice
+    assert "2027-01-05" in notice
+
+
+def test_notice_on_a_day_without_departures(client: TestClient):
+    notice = _notice(client, "2026-10-25T08:00")  # a Sunday: no service in the test feeds
+    assert notice is not None
+    assert notice.startswith("No departures on 2026-10-25")
+
+
+def test_notice_before_the_feeds_were_published(client: TestClient, store: CityDataStore):
+    # Feeds like Entur's drop the days before their publication, though their calendars
+    # still start earlier: such a day must be flagged, here and in the other date queries.
+    meta_path = store.prepared_dir("testville") / "meta.json"
+    meta = json.loads(meta_path.read_text())
+    meta["feeds"][0]["last_modified"] = "Mon, 02 Nov 2026 10:39:04 GMT"
+    meta["feeds"][1]["last_modified"] = "not a date"  # ignored
+    meta_path.write_text(json.dumps(meta))
+
+    notice = _notice(client, "2026-10-22T08:00")
+    assert notice is not None
+    assert "2026-11-02 to 2026-12-31" in notice
+    assert _notice(client, "2026-11-02T08:00") is None
+
+    old = {"origins": [A], "departure": "2026-10-22T08:00"}
+    route = client.post("/api/cities/testville/route", json={**old, "destination": D}).json()
+    assert route["notice"] == notice
+    fc = client.post("/api/cities/testville/isochrone", json={**old, "minutes": 20}).json()
+    assert fc["features"][0]["properties"]["notice"] == notice
 
 
 def test_isochrone_union_and_intersection(client: TestClient):
